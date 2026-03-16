@@ -1,0 +1,55 @@
+# Dependencies
+node_modules/
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Environment files
+.env
+.env.local
+.env.production
+.env.*.local
+
+# Build outputs
+.next/
+out/
+dist/
+build/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# Testing
+coverage/
+.pytest_cache/
+htmlcov/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Processing artifacts
+*.wav
+*.ass
+
+# Logs
+*.log
+npm-debug.log*
+
+# Supabase
+supabase/.temp/
+
+# Docker
+docker-compose.override.yml
+
+# Sample/test videos
+esempio.mov
+*.mov
+*.mp4
+!apps/

@@ -1,0 +1,29 @@
+version: "3.8"
+
+services:
+  # Redis per job queue (dev locale — in produzione usiamo Upstash)
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+
+  # Python processing service
+  processor:
+    build:
+      context: ./apps/processor
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    env_file:
+      - ./apps/processor/.env
+    environment:
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      - redis
+    volumes:
+      - ./apps/processor/src:/app/src  # Hot reload in dev
+
+volumes:
+  redis-data:
