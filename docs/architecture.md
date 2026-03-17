@@ -92,7 +92,8 @@ VideoCut/
 │   │   │   │   ├── ui/               # shadcn/ui (button, card, badge, progress, etc.)
 │   │   │   │   ├── upload/           # VideoCard, VideoList, UploadZone, etc.
 │   │   │   │   ├── jobs/             # ProcessingOptionsDialog, JobStatusBadge, JobProgress
-│   │   │   │   └── subtitles/        # SubtitleCustomizer, SubtitlePreview
+│   │   │   │   ├── subtitles/        # SubtitleCustomizer, SubtitlePreview
+│   │   │   │   └── processing/       # SpeedControl, FillerRemoval, FormatSelector
 │   │   │   ├── hooks/
 │   │   │   │   └── use-job-status.ts # Realtime job subscription
 │   │   │   ├── lib/
@@ -100,6 +101,7 @@ VideoCut/
 │   │   │   │   ├── videos/           # types.ts, actions.ts, validation.ts
 │   │   │   │   ├── jobs/             # types.ts, actions.ts
 │   │   │   │   ├── subtitles/        # types.ts (SubtitleStyle, font/color/position types)
+│   │   │   │   ├── processing/      # types.ts (SpeedMode, FormatPresets, SafeZones, AdvancedOptions)
 │   │   │   │   ├── utils.ts
 │   │   │   │   └── utils.test.ts
 │   │   │   ├── test/
@@ -127,11 +129,15 @@ VideoCut/
 │       │   │   └── job.py            # Pydantic models (ProcessRequest, VadSegment, SubtitleStyle, ProcessingOptions, etc.)
 │       │   ├── services/
 │       │   │   ├── supabase_client.py  # Supabase service-role client
-│       │   │   ├── ffmpeg.py           # FFmpeg subprocess wrapper
+│       │   │   ├── ffmpeg.py           # FFmpeg subprocess wrapper (cut, speed, crop, burn)
 │       │   │   ├── vad.py              # Silero VAD service
 │       │   │   ├── transcription.py    # faster-whisper service
-│       │   │   ├── cut_planner.py      # Cut plan algorithm
-│       │   │   └── ass_generator.py    # ASS subtitle generation with karaoke tags
+│       │   │   ├── cut_planner.py      # Cut plan algorithm (silence + filler removal)
+│       │   │   ├── ass_generator.py    # ASS subtitle generation with karaoke tags
+│       │   │   ├── filler_detector.py  # Per-language filler word enrichment
+│       │   │   ├── speed_controller.py # Uniform + smart speed with timestamp remapping
+│       │   │   ├── safe_zones.py       # Platform safe zone margins for subtitles
+│       │   │   └── smart_crop.py       # Face detection + EMA smoothing + sendcmd
 │       │   ├── workers/
 │       │   │   ├── process_video.py    # arq task (pipeline orchestrator)
 │       │   │   └── worker_settings.py  # arq WorkerSettings
@@ -142,6 +148,10 @@ VideoCut/
 │       │   ├── test_models.py
 │       │   ├── test_cut_planner.py
 │       │   ├── test_ffmpeg.py
+│       │   ├── test_filler_detector.py
+│       │   ├── test_speed_controller.py
+│       │   ├── test_safe_zones.py
+│       │   ├── test_smart_crop.py
 │       │   ├── test_routes.py
 │       │   └── test_worker.py
 │       ├── Dockerfile

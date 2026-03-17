@@ -18,6 +18,10 @@ _HEAVY_MODULES = [
     "torchaudio.functional",
     "silero_vad",
     "faster_whisper",
+    "cv2",
+    "mediapipe",
+    "mediapipe.solutions",
+    "mediapipe.solutions.face_detection",
 ]
 
 for mod_name in _HEAVY_MODULES:

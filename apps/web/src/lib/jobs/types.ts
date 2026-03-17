@@ -17,6 +17,13 @@ export type ProcessingOptionsPayload = {
   subtitle_outline?: number
   subtitle_shadow?: number
   subtitle_language?: string
+  output_format?: string
+  speed_mode?: string
+  speed_value?: number
+  remove_fillers?: boolean
+  filler_language?: string
+  smart_crop?: boolean
+  target_platform?: string
 }
 
 export type CreateJobPayload = {

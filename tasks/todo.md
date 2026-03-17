@@ -133,28 +133,40 @@ _Deliverables e verifiche dettagliate per ogni fase → `tasks/plans/master-plan
 
 ## Fase 5 — Advanced Processing Features
 
-- [ ] **Speed control:**
-  - [ ] Uniforme: 0.5x, 0.75x, 1x, 1.25x, 1.5x, 2x
-  - [ ] Smart: accelera solo le parti di non-parlato residue
-- [ ] **Filler word removal:**
-  - [ ] Detection da CrisperWhisper tags + dizionario per-lingua
-  - [ ] Dizionari filler: IT, EN, ES, FR, DE, PT
-  - [ ] Taglio con crossfade (non hard cut)
-  - [ ] Toggle on/off per l'utente
-- [ ] **Format/Crop:**
-  - [ ] Preset: 9:16 (TikTok/Reels/Shorts), 16:9 (YouTube), 1:1 (Instagram), 4:3
-  - [ ] Smart crop con face detection (MediaPipe)
-  - [ ] EMA smoothing per evitare crop jittery
-  - [ ] Fallback a center crop se nessun volto rilevato
-- [ ] **Platform safe zones:**
-  - [ ] TikTok, Instagram Reels, YouTube Shorts safe zone overlay
-  - [ ] Sottotitoli posizionati automaticamente nella safe zone
-- [ ] UI per selezionare/configurare ogni feature
-- [ ] **Test:** Speed 2x produce video alla durata corretta
-- [ ] **Test:** Filler words rimossi in video italiano
-- [ ] **Test:** Smart crop segue il volto del parlante
-- [ ] **Test:** Sottotitoli dentro safe zone per ogni piattaforma
-- [ ] **Docs:** Aggiornare docs/
+- [x] **Speed control:**
+  - [x] Uniforme: 0.5x, 0.75x, 1x, 1.25x, 1.5x, 2x
+  - [x] Smart: accelera solo le parti di non-parlato residue
+- [x] **Filler word removal:**
+  - [x] Detection da CrisperWhisper tags + dizionario per-lingua
+  - [x] Dizionari filler: IT, EN, ES, FR, DE, PT
+  - [x] Taglio con crossfade (non hard cut)
+  - [x] Toggle on/off per l'utente
+- [x] **Format/Crop:**
+  - [x] Preset: 9:16 (TikTok/Reels/Shorts), 16:9 (YouTube), 1:1 (Instagram), 4:3
+  - [x] Smart crop con face detection (MediaPipe)
+  - [x] EMA smoothing per evitare crop jittery
+  - [x] Fallback a center crop se nessun volto rilevato
+- [x] **Platform safe zones:**
+  - [x] TikTok, Instagram Reels, YouTube Shorts safe zone overlay
+  - [x] Sottotitoli posizionati automaticamente nella safe zone
+- [x] UI per selezionare/configurare ogni feature
+- [x] **Test:** Speed 2x produce video alla durata corretta
+- [x] **Test:** Filler words rimossi in video italiano
+- [x] **Test:** Smart crop segue il volto del parlante
+- [x] **Test:** Sottotitoli dentro safe zone per ogni piattaforma
+- [x] **Docs:** Aggiornare docs/
+
+### Note post-completamento
+- 184 Python tests (70 new: filler detector, speed controller, safe zones, smart crop, updated worker)
+- 103 frontend tests (existing — new components use same patterns)
+- 287 total tests (184 Python + 103 frontend)
+- mediapipe + opencv-python-headless added to dependencies
+- Dockerfile updated with libgl1-mesa-glx libglib2.0-0 for MediaPipe
+- Pipeline progress redistribution: 12 steps (0→5→10→20→45→48→50→58→63→70→78→90→95→100)
+- ASS generator uses post-crop dimensions and platform-aware MarginV
+- Speed applied BEFORE subtitles (timestamps are speed-adjusted)
+- Crop + subtitle burn-in combined into single FFmpeg pass when both needed
+- All new ProcessingOptions fields have defaults — backward compatible
 
 ## Fase 6 — Preview & Download
 

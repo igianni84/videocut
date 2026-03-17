@@ -60,8 +60,8 @@
 ### Stato Corrente
 | | |
 |---|---|
-| **Ultima fase completata** | Phase 4 — Dynamic Subtitles (2026-03-17) |
-| **Prossima fase** | Phase 5 — Advanced Processing Features |
+| **Ultima fase completata** | Phase 5 — Advanced Processing Features (2026-03-17) |
+| **Prossima fase** | Phase 6 — Preview & Download |
 
 ### Reference Index
 

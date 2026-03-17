@@ -15,6 +15,23 @@ class ProcessingOptions(BaseModel):
     subtitle_shadow: int = 1
     subtitle_language: str = "auto"  # auto | it | en | es | fr | de | pt
     output_format: str = "original"  # original | 9:16 | 16:9 | 1:1 | 4:3
+    # Speed control
+    speed_mode: str = "none"  # none | uniform | smart
+    speed_value: float = 1.0  # 0.5–2.0 (for uniform)
+    # Filler removal
+    remove_fillers: bool = False
+    filler_language: str = "auto"  # auto | it | en | es | fr | de | pt
+    # Smart crop
+    smart_crop: bool = True
+    target_platform: str = "none"  # none | tiktok | reels | shorts | youtube
+
+
+class SpeedSegment(BaseModel):
+    original_start: float
+    original_end: float
+    speed: float  # 1.0 for speech, 2.0 for gaps
+    new_start: float
+    new_end: float
 
 
 class ProcessRequest(BaseModel):

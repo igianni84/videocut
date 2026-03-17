@@ -158,6 +158,7 @@ def generate_ass(
     options: ProcessingOptions,
     video_width: int,
     video_height: int,
+    margin_v: int = 30,
 ) -> str:
     """Generate complete ASS subtitle file content with karaoke highlighting.
 
@@ -208,7 +209,7 @@ def generate_ass(
         f"1,0,0,0,"
         f"100,100,0,0,"
         f"1,{style.outline},{style.shadow},"
-        f"{alignment},20,20,30,1"
+        f"{alignment},20,20,{margin_v},1"
     )
     lines.append("")
 

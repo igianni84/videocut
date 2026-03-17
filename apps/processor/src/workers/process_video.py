@@ -8,9 +8,26 @@ from pathlib import Path
 from src.config.settings import settings
 from src.models.job import CutSegment, ProcessingOptions
 from src.services import supabase_client
-from src.services.cut_planner import plan_cuts
 from src.services.ass_generator import generate_ass, remap_transcription
-from src.services.ffmpeg import burn_subtitles, cut_and_concat, extract_audio, get_video_info
+from src.services.cut_planner import plan_cuts
+from src.services.filler_detector import enrich_filler_tags
+from src.services.ffmpeg import (
+    apply_smart_speed,
+    apply_uniform_speed,
+    burn_subtitles,
+    crop_and_burn_subtitles,
+    cut_and_concat,
+    extract_audio,
+    get_video_info,
+)
+from src.services.safe_zones import get_subtitle_margin_v
+from src.services.smart_crop import (
+    calculate_crop_dimensions,
+    detect_face_positions,
+    generate_sendcmd,
+    smooth_crop_positions,
+)
+from src.services.speed_controller import compute_smart_speed_segments, remap_for_speed
 from src.services.transcription import TranscriptionService
 from src.services.vad import VadService
 
@@ -100,66 +117,134 @@ async def _run_pipeline(
     # Get video info
     info = await get_video_info(video_path)
 
-    # 2. Extract audio (5% -> 15%)
+    # 2. Extract audio (5% -> 10%)
     logger.info("Job %s: extracting audio...", job_id)
     audio_path = work_dir / "audio.wav"
     await extract_audio(video_path, audio_path)
-    await supabase_client.update_job_progress(job_id, 15)
+    await supabase_client.update_job_progress(job_id, 10)
 
-    # 3. VAD (15% -> 30%)
+    # 3. VAD (10% -> 20%)
     logger.info("Job %s: running VAD...", job_id)
     vad = _get_vad()
     vad_segments = await asyncio.to_thread(vad.detect_speech, audio_path)
-    await supabase_client.update_job_progress(job_id, 30)
+    await supabase_client.update_job_progress(job_id, 20)
 
-    # 4. Transcription (30% -> 60%)
+    # 4. Transcription (20% -> 45%)
     logger.info("Job %s: transcribing...", job_id)
     transcription_svc = _get_transcription()
     transcription = await asyncio.to_thread(transcription_svc.transcribe, audio_path)
-    await supabase_client.update_job_progress(job_id, 60)
+    await supabase_client.update_job_progress(job_id, 45)
 
-    # 5. Plan cuts (60% -> 65%)
+    # 5. Filler enrichment (45% -> 48%) — conditional
+    if options.remove_fillers:
+        logger.info("Job %s: enriching filler tags...", job_id)
+        transcription = enrich_filler_tags(transcription, options.filler_language)
+    await supabase_client.update_job_progress(job_id, 48)
+
+    # 6. Plan cuts (48% -> 50%)
     logger.info("Job %s: planning cuts...", job_id)
     cuts = plan_cuts(vad_segments, transcription, options)
-    await supabase_client.update_job_progress(job_id, 65)
+    await supabase_client.update_job_progress(job_id, 50)
 
     if not cuts:
-        # No silences detected — use original video as base
         logger.info("Job %s: no silences detected, nothing to cut", job_id)
         current_video = video_path
-        await supabase_client.update_job_progress(job_id, 70)
+        await supabase_client.update_job_progress(job_id, 58)
     else:
-        # 6. Cut and concat (65% -> 70%)
+        # 7. Cut and concat (50% -> 58%)
         logger.info("Job %s: cutting video (%d segments)...", job_id, len(cuts))
         current_video = work_dir / "cut.mp4"
         await cut_and_concat(video_path, cuts, current_video)
-        await supabase_client.update_job_progress(job_id, 70)
+        await supabase_client.update_job_progress(job_id, 58)
 
-    # 7. Subtitles (70% -> 85%)
+    # 8. Speed control (58% -> 63%) — conditional
+    speed_segments = None
+    if options.speed_mode == "uniform" and options.speed_value != 1.0:
+        logger.info("Job %s: applying uniform speed (%.2fx)...", job_id, options.speed_value)
+        speed_output = work_dir / "speed.mp4"
+        await apply_uniform_speed(current_video, speed_output, options.speed_value)
+        current_video = speed_output
+    elif options.speed_mode == "smart":
+        logger.info("Job %s: computing smart speed segments...", job_id)
+        speed_segments = compute_smart_speed_segments(vad_segments, cuts)
+        if speed_segments:
+            speed_output = work_dir / "speed.mp4"
+            await apply_smart_speed(current_video, speed_output, speed_segments)
+            current_video = speed_output
+    await supabase_client.update_job_progress(job_id, 63)
+
+    # 9. ASS subtitle generation (63% -> 70%)
+    ass_path = None
+    needs_crop = options.output_format != "original"
+    video_w = info.get("width") or 1920
+    video_h = info.get("height") or 1080
+
+    if needs_crop:
+        crop_w, crop_h = calculate_crop_dimensions(video_w, video_h, options.output_format)
+    else:
+        crop_w, crop_h = video_w, video_h
+
     if options.subtitle_enabled:
         logger.info("Job %s: generating subtitles...", job_id)
 
         # Remap timestamps to cut timeline (no-op if no cuts)
         remapped = remap_transcription(transcription, cuts) if cuts else transcription
 
-        # Generate ASS file
-        video_w = info.get("width") or 1920
-        video_h = info.get("height") or 1080
-        ass_content = generate_ass(remapped, options, video_w, video_h)
+        # Remap for speed changes
+        remapped = remap_for_speed(remapped, options.speed_mode, options.speed_value, speed_segments)
+
+        # Calculate margin for platform safe zones (use post-crop dimensions)
+        margin_v = get_subtitle_margin_v(
+            options.target_platform, crop_h, options.subtitle_position
+        )
+
+        # Generate ASS with post-crop dimensions
+        ass_content = generate_ass(remapped, options, crop_w, crop_h, margin_v=margin_v)
         ass_path = work_dir / "subtitles.ass"
         ass_path.write_text(ass_content, encoding="utf-8")
-        await supabase_client.update_job_progress(job_id, 75)
+    await supabase_client.update_job_progress(job_id, 70)
 
-        # Burn subtitles into video
+    # 10. Face detection (70% -> 78%) — conditional
+    sendcmd_path = None
+    if needs_crop and options.smart_crop:
+        logger.info("Job %s: detecting faces for smart crop...", job_id)
+        faces = await asyncio.to_thread(detect_face_positions, str(current_video))
+        if faces:
+            positions = smooth_crop_positions(faces, crop_w, crop_h, video_w, video_h)
+            # Get FPS from video info
+            fps = 30.0  # default
+            current_info = await get_video_info(current_video)
+            if current_info.get("fps"):
+                fps = current_info["fps"]
+            sendcmd_content = generate_sendcmd(positions, crop_w, crop_h, video_w, video_h, fps, 5)
+            sendcmd_path = work_dir / "sendcmd.txt"
+            sendcmd_path.write_text(sendcmd_content, encoding="utf-8")
+    await supabase_client.update_job_progress(job_id, 78)
+
+    # 11. Crop + subtitle burn-in (78% -> 90%)
+    if needs_crop:
+        logger.info("Job %s: cropping and burning subtitles...", job_id)
+        final_path = work_dir / "final.mp4"
+        await crop_and_burn_subtitles(
+            current_video, final_path, crop_w, crop_h,
+            ass_path=ass_path, sendcmd_path=sendcmd_path,
+        )
+        current_video = final_path
+    elif ass_path:
+        # No crop, but subtitles need burning
+        logger.info("Job %s: burning subtitles...", job_id)
         subtitled_path = work_dir / "subtitled.mp4"
         await burn_subtitles(current_video, ass_path, subtitled_path)
         current_video = subtitled_path
-        await supabase_client.update_job_progress(job_id, 85)
-    else:
-        await supabase_client.update_job_progress(job_id, 85)
+    await supabase_client.update_job_progress(job_id, 90)
 
     # Determine if we need to upload (any processing happened?)
-    needs_upload = cuts or options.subtitle_enabled
+    needs_upload = (
+        cuts
+        or options.subtitle_enabled
+        or options.speed_mode != "none"
+        or options.output_format != "original"
+    )
 
     if not needs_upload:
         # Nothing changed — complete with original
@@ -178,14 +263,14 @@ async def _run_pipeline(
     # Get output info
     output_info = await get_video_info(current_video)
 
-    # 8. Upload result (85% -> 95%)
+    # 12. Upload result (90% -> 95%)
     logger.info("Job %s: uploading result...", job_id)
     user_id = video_storage_path.split("/")[0]
     output_storage_path = f"{user_id}/{job_id}/processed.mp4"
     await supabase_client.upload_file("processed", output_storage_path, current_video)
     await supabase_client.update_job_progress(job_id, 95)
 
-    # 9. Complete (95% -> 100%)
+    # 13. Complete (95% -> 100%)
     elapsed_ms = int((time.monotonic() - start_time) * 1000)
     await supabase_client.complete_job(
         job_id,

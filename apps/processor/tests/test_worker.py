@@ -13,6 +13,26 @@ import pytest
 from src.models.job import CutSegment, TranscriptionResult, TranscriptionSegment, TranscriptionWord, VadSegment
 from src.workers.process_video import _handle_failure, process_video_task
 
+# Common patches for the full pipeline
+_PIPELINE_PATCHES = [
+    "src.workers.process_video._get_vad",
+    "src.workers.process_video._get_transcription",
+    "src.workers.process_video.plan_cuts",
+    "src.workers.process_video.burn_subtitles",
+    "src.workers.process_video.cut_and_concat",
+    "src.workers.process_video.extract_audio",
+    "src.workers.process_video.get_video_info",
+    "src.workers.process_video.supabase_client",
+    "src.workers.process_video.settings",
+    "src.workers.process_video.enrich_filler_tags",
+    "src.workers.process_video.apply_uniform_speed",
+    "src.workers.process_video.apply_smart_speed",
+    "src.workers.process_video.compute_smart_speed_segments",
+    "src.workers.process_video.remap_for_speed",
+    "src.workers.process_video.detect_face_positions",
+    "src.workers.process_video.crop_and_burn_subtitles",
+]
+
 
 def _sample_vad_segments() -> list[VadSegment]:
     return [
@@ -43,10 +63,75 @@ def _output_info(duration: float = 4.1) -> dict:
     return {"duration": duration, "width": 1920, "height": 1080}
 
 
+def _setup_basic_mocks(
+    mock_settings,
+    mock_supabase,
+    mock_get_info,
+    mock_extract_audio,
+    mock_cut_concat,
+    mock_burn_subs,
+    mock_plan_cuts,
+    mock_get_transcription,
+    mock_get_vad,
+    mock_enrich_fillers,
+    mock_uniform_speed,
+    mock_smart_speed,
+    mock_compute_smart,
+    mock_remap_speed,
+    mock_detect_faces,
+    mock_crop_burn,
+    tmp_path: Path,
+    cuts=None,
+    info_side_effect=None,
+):
+    """Configure all mocks for a basic pipeline run."""
+    mock_settings.temp_dir = str(tmp_path)
+    mock_settings.processing_timeout_seconds = 300
+
+    mock_vad = MagicMock()
+    mock_vad.detect_speech = MagicMock(return_value=_sample_vad_segments())
+    mock_get_vad.return_value = mock_vad
+
+    mock_trans = MagicMock()
+    mock_trans.transcribe = MagicMock(return_value=_sample_transcription())
+    mock_get_transcription.return_value = mock_trans
+
+    mock_plan_cuts.return_value = cuts if cuts is not None else _sample_cuts()
+    mock_enrich_fillers.return_value = _sample_transcription()
+    mock_remap_speed.return_value = _sample_transcription()
+    mock_compute_smart.return_value = []
+    mock_detect_faces.return_value = []
+
+    mock_extract_audio.return_value = None
+    mock_cut_concat.return_value = None
+    mock_burn_subs.return_value = None
+    mock_uniform_speed.return_value = None
+    mock_smart_speed.return_value = None
+    mock_crop_burn.return_value = None
+
+    if info_side_effect:
+        mock_get_info.side_effect = info_side_effect
+    else:
+        mock_get_info.side_effect = [_video_info(10.0), _output_info(4.1)]
+
+    mock_supabase.update_job_status = AsyncMock()
+    mock_supabase.download_file = AsyncMock()
+    mock_supabase.update_job_progress = AsyncMock()
+    mock_supabase.complete_job = AsyncMock()
+    mock_supabase.upload_file = AsyncMock()
+
+
 class TestProcessVideoTaskSuccess:
     """Successful pipeline run: all services called in correct order."""
 
     @pytest.mark.asyncio
+    @patch("src.workers.process_video.crop_and_burn_subtitles")
+    @patch("src.workers.process_video.detect_face_positions")
+    @patch("src.workers.process_video.remap_for_speed")
+    @patch("src.workers.process_video.compute_smart_speed_segments")
+    @patch("src.workers.process_video.apply_smart_speed")
+    @patch("src.workers.process_video.apply_uniform_speed")
+    @patch("src.workers.process_video.enrich_filler_tags")
     @patch("src.workers.process_video.settings")
     @patch("src.workers.process_video.supabase_client")
     @patch("src.workers.process_video.get_video_info")
@@ -67,37 +152,22 @@ class TestProcessVideoTaskSuccess:
         mock_get_info,
         mock_supabase,
         mock_settings,
+        mock_enrich_fillers,
+        mock_uniform_speed,
+        mock_smart_speed,
+        mock_compute_smart,
+        mock_remap_speed,
+        mock_detect_faces,
+        mock_crop_burn,
         tmp_path: Path,
     ):
-        # Configure settings
-        mock_settings.temp_dir = str(tmp_path)
-        mock_settings.processing_timeout_seconds = 300
-
-        # Configure VAD
-        mock_vad = MagicMock()
-        mock_vad.detect_speech = MagicMock(return_value=_sample_vad_segments())
-        mock_get_vad.return_value = mock_vad
-
-        # Configure transcription
-        mock_trans = MagicMock()
-        mock_trans.transcribe = MagicMock(return_value=_sample_transcription())
-        mock_get_transcription.return_value = mock_trans
-
-        # Configure cut planner
-        mock_plan_cuts.return_value = _sample_cuts()
-
-        # Configure FFmpeg
-        mock_extract_audio.return_value = None
-        mock_cut_concat.return_value = None
-        mock_burn_subs.return_value = None
-        mock_get_info.side_effect = [_video_info(10.0), _output_info(4.1)]
-
-        # Configure Supabase
-        mock_supabase.update_job_status = AsyncMock()
-        mock_supabase.download_file = AsyncMock()
-        mock_supabase.update_job_progress = AsyncMock()
-        mock_supabase.complete_job = AsyncMock()
-        mock_supabase.upload_file = AsyncMock()
+        _setup_basic_mocks(
+            mock_settings, mock_supabase, mock_get_info, mock_extract_audio,
+            mock_cut_concat, mock_burn_subs, mock_plan_cuts, mock_get_transcription,
+            mock_get_vad, mock_enrich_fillers, mock_uniform_speed, mock_smart_speed,
+            mock_compute_smart, mock_remap_speed, mock_detect_faces, mock_crop_burn,
+            tmp_path,
+        )
 
         result = await process_video_task(
             ctx={},
@@ -112,7 +182,9 @@ class TestProcessVideoTaskSuccess:
         mock_supabase.update_job_status.assert_called_once()
         mock_supabase.download_file.assert_called_once()
         mock_extract_audio.assert_called_once()
+        mock_vad = mock_get_vad.return_value
         mock_vad.detect_speech.assert_called_once()
+        mock_trans = mock_get_transcription.return_value
         mock_trans.transcribe.assert_called_once()
         mock_plan_cuts.assert_called_once()
         mock_cut_concat.assert_called_once()
@@ -121,6 +193,13 @@ class TestProcessVideoTaskSuccess:
         mock_supabase.complete_job.assert_called_once()
 
     @pytest.mark.asyncio
+    @patch("src.workers.process_video.crop_and_burn_subtitles")
+    @patch("src.workers.process_video.detect_face_positions")
+    @patch("src.workers.process_video.remap_for_speed")
+    @patch("src.workers.process_video.compute_smart_speed_segments")
+    @patch("src.workers.process_video.apply_smart_speed")
+    @patch("src.workers.process_video.apply_uniform_speed")
+    @patch("src.workers.process_video.enrich_filler_tags")
     @patch("src.workers.process_video.settings")
     @patch("src.workers.process_video.supabase_client")
     @patch("src.workers.process_video.get_video_info")
@@ -141,30 +220,22 @@ class TestProcessVideoTaskSuccess:
         mock_get_info,
         mock_supabase,
         mock_settings,
+        mock_enrich_fillers,
+        mock_uniform_speed,
+        mock_smart_speed,
+        mock_compute_smart,
+        mock_remap_speed,
+        mock_detect_faces,
+        mock_crop_burn,
         tmp_path: Path,
     ):
-        mock_settings.temp_dir = str(tmp_path)
-        mock_settings.processing_timeout_seconds = 300
-
-        mock_vad = MagicMock()
-        mock_vad.detect_speech = MagicMock(return_value=_sample_vad_segments())
-        mock_get_vad.return_value = mock_vad
-
-        mock_trans = MagicMock()
-        mock_trans.transcribe = MagicMock(return_value=_sample_transcription())
-        mock_get_transcription.return_value = mock_trans
-
-        mock_plan_cuts.return_value = _sample_cuts()
-        mock_extract_audio.return_value = None
-        mock_cut_concat.return_value = None
-        mock_burn_subs.return_value = None
-        mock_get_info.side_effect = [_video_info(), _output_info()]
-
-        mock_supabase.update_job_status = AsyncMock()
-        mock_supabase.download_file = AsyncMock()
-        mock_supabase.update_job_progress = AsyncMock()
-        mock_supabase.complete_job = AsyncMock()
-        mock_supabase.upload_file = AsyncMock()
+        _setup_basic_mocks(
+            mock_settings, mock_supabase, mock_get_info, mock_extract_audio,
+            mock_cut_concat, mock_burn_subs, mock_plan_cuts, mock_get_transcription,
+            mock_get_vad, mock_enrich_fillers, mock_uniform_speed, mock_smart_speed,
+            mock_compute_smart, mock_remap_speed, mock_detect_faces, mock_crop_burn,
+            tmp_path,
+        )
 
         await process_video_task(
             ctx={},
@@ -173,15 +244,22 @@ class TestProcessVideoTaskSuccess:
             options_dict={},
         )
 
-        # Progress: 5, 15, 30, 60, 65, 70(cut), 75(ass gen), 85(burn), 95(upload)
+        # New progress: 5, 10, 20, 45, 48, 50, 58(cut), 63(speed), 70(ass), 78(face), 90(burn), 95(upload)
         progress_calls = [c.args[1] for c in mock_supabase.update_job_progress.call_args_list]
-        assert progress_calls == [5, 15, 30, 60, 65, 70, 75, 85, 95]
+        assert progress_calls == [5, 10, 20, 45, 48, 50, 58, 63, 70, 78, 90, 95]
 
 
 class TestNoCutsScenario:
     """No silences detected -> subtitles still applied if enabled."""
 
     @pytest.mark.asyncio
+    @patch("src.workers.process_video.crop_and_burn_subtitles")
+    @patch("src.workers.process_video.detect_face_positions")
+    @patch("src.workers.process_video.remap_for_speed")
+    @patch("src.workers.process_video.compute_smart_speed_segments")
+    @patch("src.workers.process_video.apply_smart_speed")
+    @patch("src.workers.process_video.apply_uniform_speed")
+    @patch("src.workers.process_video.enrich_filler_tags")
     @patch("src.workers.process_video.settings")
     @patch("src.workers.process_video.supabase_client")
     @patch("src.workers.process_video.get_video_info")
@@ -202,32 +280,22 @@ class TestNoCutsScenario:
         mock_get_info,
         mock_supabase,
         mock_settings,
+        mock_enrich_fillers,
+        mock_uniform_speed,
+        mock_smart_speed,
+        mock_compute_smart,
+        mock_remap_speed,
+        mock_detect_faces,
+        mock_crop_burn,
         tmp_path: Path,
     ):
-        mock_settings.temp_dir = str(tmp_path)
-        mock_settings.processing_timeout_seconds = 300
-
-        mock_vad = MagicMock()
-        mock_vad.detect_speech = MagicMock(return_value=[
-            VadSegment(start=0.0, end=10.0, is_speech=True)
-        ])
-        mock_get_vad.return_value = mock_vad
-
-        mock_trans = MagicMock()
-        mock_trans.transcribe = MagicMock(return_value=_sample_transcription())
-        mock_get_transcription.return_value = mock_trans
-
-        mock_plan_cuts.return_value = []
-        mock_extract_audio.return_value = None
-        mock_burn_subs.return_value = None
-        # First call: input video info, second call: subtitled output info
-        mock_get_info.side_effect = [_video_info(10.0), _output_info(10.0)]
-
-        mock_supabase.update_job_status = AsyncMock()
-        mock_supabase.download_file = AsyncMock()
-        mock_supabase.update_job_progress = AsyncMock()
-        mock_supabase.complete_job = AsyncMock()
-        mock_supabase.upload_file = AsyncMock()
+        _setup_basic_mocks(
+            mock_settings, mock_supabase, mock_get_info, mock_extract_audio,
+            mock_cut_concat, mock_burn_subs, mock_plan_cuts, mock_get_transcription,
+            mock_get_vad, mock_enrich_fillers, mock_uniform_speed, mock_smart_speed,
+            mock_compute_smart, mock_remap_speed, mock_detect_faces, mock_crop_burn,
+            tmp_path, cuts=[], info_side_effect=[_video_info(10.0), _output_info(10.0)],
+        )
 
         result = await process_video_task(
             ctx={},
@@ -237,13 +305,18 @@ class TestNoCutsScenario:
         )
 
         assert result["status"] == "completed"
-
-        # No cuts, but subtitles burned -> burn_subtitles called, upload called
         mock_cut_concat.assert_not_called()
         mock_burn_subs.assert_called_once()
         mock_supabase.upload_file.assert_called_once()
 
     @pytest.mark.asyncio
+    @patch("src.workers.process_video.crop_and_burn_subtitles")
+    @patch("src.workers.process_video.detect_face_positions")
+    @patch("src.workers.process_video.remap_for_speed")
+    @patch("src.workers.process_video.compute_smart_speed_segments")
+    @patch("src.workers.process_video.apply_smart_speed")
+    @patch("src.workers.process_video.apply_uniform_speed")
+    @patch("src.workers.process_video.enrich_filler_tags")
     @patch("src.workers.process_video.settings")
     @patch("src.workers.process_video.supabase_client")
     @patch("src.workers.process_video.get_video_info")
@@ -264,29 +337,24 @@ class TestNoCutsScenario:
         mock_get_info,
         mock_supabase,
         mock_settings,
+        mock_enrich_fillers,
+        mock_uniform_speed,
+        mock_smart_speed,
+        mock_compute_smart,
+        mock_remap_speed,
+        mock_detect_faces,
+        mock_crop_burn,
         tmp_path: Path,
     ):
-        mock_settings.temp_dir = str(tmp_path)
-        mock_settings.processing_timeout_seconds = 300
-
-        mock_vad = MagicMock()
-        mock_vad.detect_speech = MagicMock(return_value=[
-            VadSegment(start=0.0, end=10.0, is_speech=True)
-        ])
-        mock_get_vad.return_value = mock_vad
-
-        mock_trans = MagicMock()
-        mock_trans.transcribe = MagicMock(return_value=_sample_transcription())
-        mock_get_transcription.return_value = mock_trans
-
-        mock_plan_cuts.return_value = []
-        mock_extract_audio.return_value = None
+        _setup_basic_mocks(
+            mock_settings, mock_supabase, mock_get_info, mock_extract_audio,
+            mock_cut_concat, mock_burn_subs, mock_plan_cuts, mock_get_transcription,
+            mock_get_vad, mock_enrich_fillers, mock_uniform_speed, mock_smart_speed,
+            mock_compute_smart, mock_remap_speed, mock_detect_faces, mock_crop_burn,
+            tmp_path, cuts=[],
+        )
+        mock_get_info.side_effect = None
         mock_get_info.return_value = _video_info(10.0)
-
-        mock_supabase.update_job_status = AsyncMock()
-        mock_supabase.download_file = AsyncMock()
-        mock_supabase.update_job_progress = AsyncMock()
-        mock_supabase.complete_job = AsyncMock()
 
         result = await process_video_task(
             ctx={},
@@ -297,11 +365,8 @@ class TestNoCutsScenario:
 
         assert result["status"] == "completed"
         assert result["no_cuts"] is True
-
         mock_cut_concat.assert_not_called()
         mock_burn_subs.assert_not_called()
-
-        # complete_job should use original path
         mock_supabase.complete_job.assert_called_once()
         call_kwargs = mock_supabase.complete_job.call_args.kwargs
         assert call_kwargs["output_storage_path"] == "user/video.mp4"
@@ -326,7 +391,6 @@ class TestTimeoutHandling:
         mock_settings.temp_dir = str(tmp_path)
         mock_settings.processing_timeout_seconds = 1
 
-        # Simulate a pipeline that takes too long
         async def slow_pipeline(*args, **kwargs):
             await asyncio.sleep(10)
 
@@ -408,7 +472,6 @@ class TestCleanup:
             options_dict={},
         )
 
-        # Work directory should be cleaned up
         assert not work_dir.exists()
 
     @pytest.mark.asyncio
@@ -438,7 +501,6 @@ class TestCleanup:
             options_dict={},
         )
 
-        # Work directory should still be cleaned up
         assert not work_dir.exists()
 
 
@@ -450,10 +512,7 @@ class TestHandleFailure:
     @patch("src.workers.process_video.supabase_client")
     async def test_retry_when_under_max(self, mock_supabase, mock_settings):
         mock_settings.max_retries = 3
-
         mock_supabase.get_job = MagicMock(return_value={"retry_count": 0})
-
-        # Mock the supabase chain: sb.table().update().eq().execute()
         mock_sb = MagicMock()
         mock_execute = MagicMock()
         mock_sb.table.return_value.update.return_value.eq.return_value.execute = mock_execute
@@ -461,7 +520,6 @@ class TestHandleFailure:
 
         await _handle_failure("job-retry", "some error")
 
-        # Should update job for retry, not fail
         update_args = mock_sb.table.return_value.update.call_args[0][0]
         assert update_args["status"] == "queued"
         assert update_args["retry_count"] == 1
@@ -471,7 +529,6 @@ class TestHandleFailure:
     @patch("src.workers.process_video.supabase_client")
     async def test_fail_when_max_retries_reached(self, mock_supabase, mock_settings):
         mock_settings.max_retries = 3
-
         mock_supabase.get_job = MagicMock(return_value={"retry_count": 2})
         mock_supabase.fail_job = AsyncMock()
 
@@ -489,10 +546,7 @@ class TestHandleFailure:
     async def test_job_not_found(self, mock_supabase, mock_settings):
         mock_supabase.get_job = MagicMock(return_value=None)
         mock_supabase.fail_job = AsyncMock()
-
-        # Should return early without crashing
         await _handle_failure("nonexistent", "error")
-
         mock_supabase.fail_job.assert_not_called()
 
     @pytest.mark.asyncio
@@ -500,9 +554,7 @@ class TestHandleFailure:
     @patch("src.workers.process_video.supabase_client")
     async def test_null_retry_count_treated_as_zero(self, mock_supabase, mock_settings):
         mock_settings.max_retries = 3
-
         mock_supabase.get_job = MagicMock(return_value={"retry_count": None})
-
         mock_sb = MagicMock()
         mock_sb.table.return_value.update.return_value.eq.return_value.execute = MagicMock()
         mock_supabase.get_supabase = MagicMock(return_value=mock_sb)
@@ -510,13 +562,20 @@ class TestHandleFailure:
         await _handle_failure("job-null-retry", "error")
 
         update_args = mock_sb.table.return_value.update.call_args[0][0]
-        assert update_args["retry_count"] == 1  # None -> 0 + 1 = 1
+        assert update_args["retry_count"] == 1
 
 
 class TestSubtitleDisabledWithCuts:
     """Cuts applied but subtitles disabled."""
 
     @pytest.mark.asyncio
+    @patch("src.workers.process_video.crop_and_burn_subtitles")
+    @patch("src.workers.process_video.detect_face_positions")
+    @patch("src.workers.process_video.remap_for_speed")
+    @patch("src.workers.process_video.compute_smart_speed_segments")
+    @patch("src.workers.process_video.apply_smart_speed")
+    @patch("src.workers.process_video.apply_uniform_speed")
+    @patch("src.workers.process_video.enrich_filler_tags")
     @patch("src.workers.process_video.settings")
     @patch("src.workers.process_video.supabase_client")
     @patch("src.workers.process_video.get_video_info")
@@ -537,29 +596,22 @@ class TestSubtitleDisabledWithCuts:
         mock_get_info,
         mock_supabase,
         mock_settings,
+        mock_enrich_fillers,
+        mock_uniform_speed,
+        mock_smart_speed,
+        mock_compute_smart,
+        mock_remap_speed,
+        mock_detect_faces,
+        mock_crop_burn,
         tmp_path: Path,
     ):
-        mock_settings.temp_dir = str(tmp_path)
-        mock_settings.processing_timeout_seconds = 300
-
-        mock_vad = MagicMock()
-        mock_vad.detect_speech = MagicMock(return_value=_sample_vad_segments())
-        mock_get_vad.return_value = mock_vad
-
-        mock_trans = MagicMock()
-        mock_trans.transcribe = MagicMock(return_value=_sample_transcription())
-        mock_get_transcription.return_value = mock_trans
-
-        mock_plan_cuts.return_value = _sample_cuts()
-        mock_extract_audio.return_value = None
-        mock_cut_concat.return_value = None
-        mock_get_info.side_effect = [_video_info(10.0), _output_info(4.1)]
-
-        mock_supabase.update_job_status = AsyncMock()
-        mock_supabase.download_file = AsyncMock()
-        mock_supabase.update_job_progress = AsyncMock()
-        mock_supabase.complete_job = AsyncMock()
-        mock_supabase.upload_file = AsyncMock()
+        _setup_basic_mocks(
+            mock_settings, mock_supabase, mock_get_info, mock_extract_audio,
+            mock_cut_concat, mock_burn_subs, mock_plan_cuts, mock_get_transcription,
+            mock_get_vad, mock_enrich_fillers, mock_uniform_speed, mock_smart_speed,
+            mock_compute_smart, mock_remap_speed, mock_detect_faces, mock_crop_burn,
+            tmp_path,
+        )
 
         result = await process_video_task(
             ctx={},
@@ -572,3 +624,174 @@ class TestSubtitleDisabledWithCuts:
         mock_cut_concat.assert_called_once()
         mock_burn_subs.assert_not_called()
         mock_supabase.upload_file.assert_called_once()
+
+
+class TestFillerRemovalPipeline:
+    """Filler enrichment is called when remove_fillers is enabled."""
+
+    @pytest.mark.asyncio
+    @patch("src.workers.process_video.crop_and_burn_subtitles")
+    @patch("src.workers.process_video.detect_face_positions")
+    @patch("src.workers.process_video.remap_for_speed")
+    @patch("src.workers.process_video.compute_smart_speed_segments")
+    @patch("src.workers.process_video.apply_smart_speed")
+    @patch("src.workers.process_video.apply_uniform_speed")
+    @patch("src.workers.process_video.enrich_filler_tags")
+    @patch("src.workers.process_video.settings")
+    @patch("src.workers.process_video.supabase_client")
+    @patch("src.workers.process_video.get_video_info")
+    @patch("src.workers.process_video.extract_audio")
+    @patch("src.workers.process_video.cut_and_concat")
+    @patch("src.workers.process_video.burn_subtitles")
+    @patch("src.workers.process_video.plan_cuts")
+    @patch("src.workers.process_video._get_transcription")
+    @patch("src.workers.process_video._get_vad")
+    async def test_filler_enrichment_called(
+        self,
+        mock_get_vad,
+        mock_get_transcription,
+        mock_plan_cuts,
+        mock_burn_subs,
+        mock_cut_concat,
+        mock_extract_audio,
+        mock_get_info,
+        mock_supabase,
+        mock_settings,
+        mock_enrich_fillers,
+        mock_uniform_speed,
+        mock_smart_speed,
+        mock_compute_smart,
+        mock_remap_speed,
+        mock_detect_faces,
+        mock_crop_burn,
+        tmp_path: Path,
+    ):
+        _setup_basic_mocks(
+            mock_settings, mock_supabase, mock_get_info, mock_extract_audio,
+            mock_cut_concat, mock_burn_subs, mock_plan_cuts, mock_get_transcription,
+            mock_get_vad, mock_enrich_fillers, mock_uniform_speed, mock_smart_speed,
+            mock_compute_smart, mock_remap_speed, mock_detect_faces, mock_crop_burn,
+            tmp_path,
+        )
+
+        await process_video_task(
+            ctx={},
+            job_id="job-fillers",
+            video_storage_path="user/video.mp4",
+            options_dict={"remove_fillers": True, "filler_language": "en"},
+        )
+
+        mock_enrich_fillers.assert_called_once()
+
+    @pytest.mark.asyncio
+    @patch("src.workers.process_video.crop_and_burn_subtitles")
+    @patch("src.workers.process_video.detect_face_positions")
+    @patch("src.workers.process_video.remap_for_speed")
+    @patch("src.workers.process_video.compute_smart_speed_segments")
+    @patch("src.workers.process_video.apply_smart_speed")
+    @patch("src.workers.process_video.apply_uniform_speed")
+    @patch("src.workers.process_video.enrich_filler_tags")
+    @patch("src.workers.process_video.settings")
+    @patch("src.workers.process_video.supabase_client")
+    @patch("src.workers.process_video.get_video_info")
+    @patch("src.workers.process_video.extract_audio")
+    @patch("src.workers.process_video.cut_and_concat")
+    @patch("src.workers.process_video.burn_subtitles")
+    @patch("src.workers.process_video.plan_cuts")
+    @patch("src.workers.process_video._get_transcription")
+    @patch("src.workers.process_video._get_vad")
+    async def test_filler_enrichment_skipped_when_disabled(
+        self,
+        mock_get_vad,
+        mock_get_transcription,
+        mock_plan_cuts,
+        mock_burn_subs,
+        mock_cut_concat,
+        mock_extract_audio,
+        mock_get_info,
+        mock_supabase,
+        mock_settings,
+        mock_enrich_fillers,
+        mock_uniform_speed,
+        mock_smart_speed,
+        mock_compute_smart,
+        mock_remap_speed,
+        mock_detect_faces,
+        mock_crop_burn,
+        tmp_path: Path,
+    ):
+        _setup_basic_mocks(
+            mock_settings, mock_supabase, mock_get_info, mock_extract_audio,
+            mock_cut_concat, mock_burn_subs, mock_plan_cuts, mock_get_transcription,
+            mock_get_vad, mock_enrich_fillers, mock_uniform_speed, mock_smart_speed,
+            mock_compute_smart, mock_remap_speed, mock_detect_faces, mock_crop_burn,
+            tmp_path,
+        )
+
+        await process_video_task(
+            ctx={},
+            job_id="job-no-fillers",
+            video_storage_path="user/video.mp4",
+            options_dict={"remove_fillers": False},
+        )
+
+        mock_enrich_fillers.assert_not_called()
+
+
+class TestSpeedControlPipeline:
+    """Speed control steps are called when speed_mode is set."""
+
+    @pytest.mark.asyncio
+    @patch("src.workers.process_video.crop_and_burn_subtitles")
+    @patch("src.workers.process_video.detect_face_positions")
+    @patch("src.workers.process_video.remap_for_speed")
+    @patch("src.workers.process_video.compute_smart_speed_segments")
+    @patch("src.workers.process_video.apply_smart_speed")
+    @patch("src.workers.process_video.apply_uniform_speed")
+    @patch("src.workers.process_video.enrich_filler_tags")
+    @patch("src.workers.process_video.settings")
+    @patch("src.workers.process_video.supabase_client")
+    @patch("src.workers.process_video.get_video_info")
+    @patch("src.workers.process_video.extract_audio")
+    @patch("src.workers.process_video.cut_and_concat")
+    @patch("src.workers.process_video.burn_subtitles")
+    @patch("src.workers.process_video.plan_cuts")
+    @patch("src.workers.process_video._get_transcription")
+    @patch("src.workers.process_video._get_vad")
+    async def test_uniform_speed_applied(
+        self,
+        mock_get_vad,
+        mock_get_transcription,
+        mock_plan_cuts,
+        mock_burn_subs,
+        mock_cut_concat,
+        mock_extract_audio,
+        mock_get_info,
+        mock_supabase,
+        mock_settings,
+        mock_enrich_fillers,
+        mock_uniform_speed,
+        mock_smart_speed,
+        mock_compute_smart,
+        mock_remap_speed,
+        mock_detect_faces,
+        mock_crop_burn,
+        tmp_path: Path,
+    ):
+        _setup_basic_mocks(
+            mock_settings, mock_supabase, mock_get_info, mock_extract_audio,
+            mock_cut_concat, mock_burn_subs, mock_plan_cuts, mock_get_transcription,
+            mock_get_vad, mock_enrich_fillers, mock_uniform_speed, mock_smart_speed,
+            mock_compute_smart, mock_remap_speed, mock_detect_faces, mock_crop_burn,
+            tmp_path,
+        )
+
+        await process_video_task(
+            ctx={},
+            job_id="job-speed",
+            video_storage_path="user/video.mp4",
+            options_dict={"speed_mode": "uniform", "speed_value": 1.5},
+        )
+
+        mock_uniform_speed.assert_called_once()
+        mock_smart_speed.assert_not_called()

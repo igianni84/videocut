@@ -8,6 +8,7 @@ from src.models.job import (
     ProcessingOptions,
     TranscriptionResult,
     TranscriptionSegment,
+    TranscriptionWord,
     VadSegment,
 )
 from src.services.cut_planner import plan_cuts
@@ -226,3 +227,120 @@ class TestMixedSegments:
         assert result[0].end == pytest.approx(3.0, abs=1e-6)
         assert result[1].start == pytest.approx(5.0, abs=1e-6)
         assert result[1].end == pytest.approx(7.0, abs=1e-6)
+
+
+# ── Filler word removal ──────────────────────────────────────────
+
+
+def _transcription_with_fillers() -> TranscriptionResult:
+    """Speech from 0-6s with a filler at 2.5-3.0s."""
+    return TranscriptionResult(
+        language="en",
+        segments=[
+            TranscriptionSegment(
+                text="hello um world",
+                words=[
+                    TranscriptionWord(word="hello", start=0.5, end=1.0),
+                    TranscriptionWord(word="um", start=2.5, end=3.0, is_filler=True),
+                    TranscriptionWord(word="world", start=4.0, end=4.5),
+                ],
+            )
+        ],
+    )
+
+
+class TestFillerRemoval:
+    def test_filler_removal_splits_segment(self):
+        """Filler word range is subtracted, splitting the speech segment."""
+        vad = [VadSegment(start=0.0, end=6.0, is_speech=True)]
+        opts = _default_options(
+            silence_threshold_ms=300,
+            min_breath_pause_ms=0,
+            remove_fillers=True,
+        )
+        result = plan_cuts(vad, _transcription_with_fillers(), opts)
+
+        # The filler at 2.5-3.0 should split [0, 6] into [0, 2.5] and [3.0, 6.0]
+        assert len(result) == 2
+        assert result[0].start == pytest.approx(0.0, abs=1e-6)
+        assert result[0].end == pytest.approx(2.5, abs=1e-6)
+        assert result[1].start == pytest.approx(3.0, abs=1e-6)
+        assert result[1].end == pytest.approx(6.0, abs=1e-6)
+
+    def test_filler_removal_disabled_keeps_segment(self):
+        """When remove_fillers=False, filler words are ignored."""
+        vad = [VadSegment(start=0.0, end=6.0, is_speech=True)]
+        opts = _default_options(
+            silence_threshold_ms=300,
+            min_breath_pause_ms=0,
+            remove_fillers=False,
+        )
+        result = plan_cuts(vad, _transcription_with_fillers(), opts)
+
+        assert len(result) == 1
+        assert result[0].start == pytest.approx(0.0, abs=1e-6)
+        assert result[0].end == pytest.approx(6.0, abs=1e-6)
+
+    def test_filler_at_segment_start(self):
+        """Filler at start of segment shortens it from the left."""
+        transcription = TranscriptionResult(
+            language="en",
+            segments=[
+                TranscriptionSegment(
+                    text="um hello",
+                    words=[
+                        TranscriptionWord(word="um", start=0.0, end=0.5, is_filler=True),
+                        TranscriptionWord(word="hello", start=1.0, end=1.5),
+                    ],
+                )
+            ],
+        )
+        vad = [VadSegment(start=0.0, end=3.0, is_speech=True)]
+        opts = _default_options(min_breath_pause_ms=0, remove_fillers=True)
+        result = plan_cuts(vad, transcription, opts)
+
+        assert len(result) == 1
+        assert result[0].start == pytest.approx(0.5, abs=1e-6)
+
+    def test_filler_at_segment_end(self):
+        """Filler at end of segment shortens it from the right."""
+        transcription = TranscriptionResult(
+            language="en",
+            segments=[
+                TranscriptionSegment(
+                    text="hello um",
+                    words=[
+                        TranscriptionWord(word="hello", start=0.0, end=0.5),
+                        TranscriptionWord(word="um", start=2.5, end=3.0, is_filler=True),
+                    ],
+                )
+            ],
+        )
+        vad = [VadSegment(start=0.0, end=3.0, is_speech=True)]
+        opts = _default_options(min_breath_pause_ms=0, remove_fillers=True)
+        result = plan_cuts(vad, transcription, opts)
+
+        assert len(result) == 1
+        assert result[0].end == pytest.approx(2.5, abs=1e-6)
+
+    def test_no_filler_words_returns_normal_cuts(self):
+        """remove_fillers=True but no is_filler words -> same as normal."""
+        transcription = TranscriptionResult(
+            language="en",
+            segments=[
+                TranscriptionSegment(
+                    text="hello world",
+                    words=[
+                        TranscriptionWord(word="hello", start=0.5, end=1.0),
+                        TranscriptionWord(word="world", start=1.5, end=2.0),
+                    ],
+                )
+            ],
+        )
+        vad = [VadSegment(start=0.0, end=3.0, is_speech=True)]
+        opts = _default_options(min_breath_pause_ms=0, remove_fillers=True)
+        result = plan_cuts(vad, transcription, opts)
+
+        assert len(result) == 1
+        assert result[0].start == pytest.approx(0.0, abs=1e-6)
+        assert result[0].end == pytest.approx(3.0, abs=1e-6)

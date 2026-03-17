@@ -5,6 +5,26 @@ from src.models.job import CutSegment, ProcessingOptions, TranscriptionResult, V
 logger = logging.getLogger(__name__)
 
 
+def _subtract_ranges(
+    segments: list[tuple[float, float]],
+    removals: list[tuple[float, float]],
+) -> list[tuple[float, float]]:
+    """Subtract removal ranges from segments, splitting them at filler boundaries."""
+    result: list[tuple[float, float]] = []
+    for seg_start, seg_end in segments:
+        current_start = seg_start
+        for rem_start, rem_end in removals:
+            if rem_end <= current_start or rem_start >= seg_end:
+                continue
+            # Filler overlaps with current segment
+            if rem_start > current_start:
+                result.append((current_start, rem_start))
+            current_start = max(current_start, rem_end)
+        if current_start < seg_end:
+            result.append((current_start, seg_end))
+    return result
+
+
 def plan_cuts(
     vad_segments: list[VadSegment],
     transcription: TranscriptionResult,
@@ -15,8 +35,9 @@ def plan_cuts(
     Algorithm:
     1. Collect all speech segments from VAD
     2. Merge speech segments that are closer than silence_threshold_ms
-    3. Add min_breath_pause_ms padding around each merged segment
-    4. Return the list of segments to keep
+    3. If remove_fillers is enabled, subtract filler word time ranges
+    4. Add min_breath_pause_ms padding around each merged segment
+    5. Return the list of segments to keep
     """
     threshold_s = options.silence_threshold_ms / 1000.0
     breath_s = options.min_breath_pause_ms / 1000.0
@@ -37,6 +58,18 @@ def plan_cuts(
             merged[-1] = (prev_start, seg.end)
         else:
             merged.append((seg.start, seg.end))
+
+    # Subtract filler word ranges if enabled
+    if options.remove_fillers:
+        filler_ranges: list[tuple[float, float]] = []
+        for segment in transcription.segments:
+            for word in segment.words:
+                if word.is_filler:
+                    filler_ranges.append((word.start, word.end))
+        if filler_ranges:
+            filler_ranges.sort(key=lambda r: r[0])
+            merged = _subtract_ranges(merged, filler_ranges)
+            logger.info("Subtracted %d filler ranges from speech segments", len(filler_ranges))
 
     # Apply breath pause padding and build cut segments
     cuts: list[CutSegment] = []
