@@ -49,7 +49,7 @@ export function SubtitleCustomizer({ value, onChange }: SubtitleCustomizerProps)
             <Label>Font</Label>
             <Select
               value={value.font}
-              onValueChange={(v: string) => update({ font: v as SubtitleFont })}
+              onValueChange={(v) => { if (v) update({ font: v as SubtitleFont }) }}
             >
               <SelectTrigger className="w-full">
                 <SelectValue />
@@ -98,7 +98,7 @@ export function SubtitleCustomizer({ value, onChange }: SubtitleCustomizerProps)
               min={24}
               max={72}
               value={[value.size]}
-              onValueChange={(v: number[]) => update({ size: v[0] })}
+              onValueChange={(v) => update({ size: Array.isArray(v) ? v[0] : v })}
             />
           </div>
 
@@ -131,7 +131,7 @@ export function SubtitleCustomizer({ value, onChange }: SubtitleCustomizerProps)
               min={0}
               max={4}
               value={[value.outline]}
-              onValueChange={(v: number[]) => update({ outline: v[0] })}
+              onValueChange={(v) => update({ outline: Array.isArray(v) ? v[0] : v })}
             />
           </div>
 
@@ -145,7 +145,7 @@ export function SubtitleCustomizer({ value, onChange }: SubtitleCustomizerProps)
               min={0}
               max={2}
               value={[value.shadow]}
-              onValueChange={(v: number[]) => update({ shadow: v[0] })}
+              onValueChange={(v) => update({ shadow: Array.isArray(v) ? v[0] : v })}
             />
           </div>
 
@@ -154,7 +154,7 @@ export function SubtitleCustomizer({ value, onChange }: SubtitleCustomizerProps)
             <Label>Language</Label>
             <Select
               value={value.language}
-              onValueChange={(v: string) => update({ language: v })}
+              onValueChange={(v) => { if (v) update({ language: v }) }}
             >
               <SelectTrigger className="w-full">
                 <SelectValue />

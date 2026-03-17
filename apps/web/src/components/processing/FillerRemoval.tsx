@@ -38,7 +38,7 @@ export function FillerRemoval({
       {enabled && (
         <div className="space-y-1.5">
           <Label>Filler Language</Label>
-          <Select value={language} onValueChange={onLanguageChange}>
+          <Select value={language} onValueChange={(v) => { if (v) onLanguageChange(v) }}>
             <SelectTrigger className="w-full">
               <SelectValue />
             </SelectTrigger>

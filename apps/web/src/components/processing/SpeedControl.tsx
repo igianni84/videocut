@@ -61,7 +61,7 @@ export function SpeedControl({
             max={2}
             step={0.25}
             value={[speedValue]}
-            onValueChange={(v: number[]) => onSpeedValueChange(v[0])}
+            onValueChange={(v) => onSpeedValueChange(Array.isArray(v) ? v[0] : v)}
           />
           <div className="flex justify-between text-[10px] text-muted-foreground">
             {SPEED_PRESETS.map((p) => (
