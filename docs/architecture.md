@@ -105,7 +105,6 @@ VideoCut/
 │   │   │   └── types/                # TypeScript types (generated + custom)
 │   │   ├── public/
 │   │   ├── next.config.ts
-│   │   ├── tailwind.config.ts
 │   │   ├── tsconfig.json
 │   │   └── package.json
 │   │
@@ -140,8 +139,11 @@ VideoCut/
 │   └── api-spec.md                   # Specifiche API
 │
 ├── tasks/                            # Project management
-│   ├── todo.md                       # Piano fasi
-│   └── lessons.md                    # Lezioni apprese
+│   ├── todo.md                       # Piano fasi (checklist)
+│   ├── lessons.md                    # Lezioni apprese
+│   └── plans/                        # Piani dettagliati per fase
+│       ├── master-plan.md            # Piano master completo
+│       └── phase-0-setup.md          # Dettaglio Fase 0 (completata)
 │
 ├── .claude/
 │   └── commands/                     # Custom Claude Code skills

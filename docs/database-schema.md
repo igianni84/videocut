@@ -73,7 +73,7 @@ CREATE POLICY "Users can insert own videos" ON public.videos FOR INSERT WITH CHE
 CREATE POLICY "Users can delete own videos" ON public.videos FOR DELETE USING (auth.uid() = user_id);
 
 -- Service role può fare tutto (per il processing service)
-CREATE POLICY "Service role full access" ON public.videos FOR ALL USING (auth.role() = 'service_role');
+CREATE POLICY "Service role full access videos" ON public.videos FOR ALL USING (auth.role() = 'service_role');
 ```
 
 ### jobs
@@ -117,7 +117,7 @@ CREATE INDEX idx_jobs_status ON public.jobs(status);
 ALTER TABLE public.jobs ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Users can view own jobs" ON public.jobs FOR SELECT USING (auth.uid() = user_id);
 CREATE POLICY "Users can insert own jobs" ON public.jobs FOR INSERT WITH CHECK (auth.uid() = user_id);
-CREATE POLICY "Service role full access" ON public.jobs FOR ALL USING (auth.role() = 'service_role');
+CREATE POLICY "Service role full access jobs" ON public.jobs FOR ALL USING (auth.role() = 'service_role');
 ```
 
 ### subscription_events (audit trail per Stripe)
@@ -136,7 +136,7 @@ CREATE INDEX idx_sub_events_type ON public.subscription_events(event_type);
 
 -- RLS: solo service role
 ALTER TABLE public.subscription_events ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Service role only" ON public.subscription_events FOR ALL USING (auth.role() = 'service_role');
+CREATE POLICY "Service role only sub_events" ON public.subscription_events FOR ALL USING (auth.role() = 'service_role');
 ```
 
 ## Supabase Storage Buckets

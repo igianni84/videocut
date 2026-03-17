@@ -61,7 +61,7 @@
 - **Frontend:** Next.js 16 (App Router), React 19, TypeScript 5.9, Tailwind CSS 4.2, shadcn/ui
 - **Auth & DB:** Supabase (Auth magic link + Google + Apple, PostgreSQL, Storage, Realtime)
 - **Payments:** Stripe (Checkout, Customer Portal, Webhooks)
-- **Video Processing:** Python 3.14 service (FastAPI, arq worker)
+- **Video Processing:** Python 3.13 service (FastAPI, arq worker)
 - **ASR/NLP:** CrisperWhisper (speech-to-text + word timestamps + filler detection)
 - **Audio Analysis:** Silero VAD (voice activity detection)
 - **Video Manipulation:** FFmpeg 8 (cut, speed, crop, subtitle burn-in)
@@ -70,7 +70,7 @@
 - **Queue:** Redis (Upstash serverless) + arq (Python async task queue)
 - **Hosting:** Vercel (frontend), Railway (processing service), Upstash (Redis)
 - **Testing:** Vitest + Playwright (frontend), pytest (processing)
-- **Node.js:** 24 LTS
+- **Node.js:** 25
 
 ### Module Map
 
