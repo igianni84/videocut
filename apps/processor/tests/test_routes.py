@@ -45,12 +45,14 @@ class TestProcessEndpoint:
         data = response.json()
         assert data["job_id"] == "job-abc"
         assert data["status"] == "queued"
-        mock_pool.enqueue_job.assert_called_once_with(
-            "process_video_task",
-            "job-abc",
-            "user123/video.mp4",
-            {"silence_threshold_ms": 300, "min_breath_pause_ms": 50},
-        )
+        mock_pool.enqueue_job.assert_called_once()
+        call_args = mock_pool.enqueue_job.call_args[0]
+        assert call_args[0] == "process_video_task"
+        assert call_args[1] == "job-abc"
+        assert call_args[2] == "user123/video.mp4"
+        opts = call_args[3]
+        assert opts["silence_threshold_ms"] == 300
+        assert opts["min_breath_pause_ms"] == 50
 
     @pytest.mark.asyncio
     async def test_custom_options_forwarded(self):
@@ -81,12 +83,14 @@ class TestProcessEndpoint:
                 )
 
         assert response.status_code == 200
-        mock_pool.enqueue_job.assert_called_once_with(
-            "process_video_task",
-            "job-xyz",
-            "user/vid.mp4",
-            {"silence_threshold_ms": 500, "min_breath_pause_ms": 100},
-        )
+        mock_pool.enqueue_job.assert_called_once()
+        call_args = mock_pool.enqueue_job.call_args[0]
+        assert call_args[0] == "process_video_task"
+        assert call_args[1] == "job-xyz"
+        assert call_args[2] == "user/vid.mp4"
+        opts = call_args[3]
+        assert opts["silence_threshold_ms"] == 500
+        assert opts["min_breath_pause_ms"] == 100
 
     @pytest.mark.asyncio
     async def test_missing_api_key_returns_422(self):

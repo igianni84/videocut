@@ -1,7 +1,11 @@
 FROM python:3.13-slim
 
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends ffmpeg && \
+    apt-get install -y --no-install-recommends \
+        ffmpeg \
+        fonts-montserrat fonts-inter fonts-roboto fonts-liberation \
+        fontconfig && \
+    fc-cache -f && \
     rm -rf /var/lib/apt/lists/*
 
 RUN mkdir -p /tmp/videocut

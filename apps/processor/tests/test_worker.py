@@ -10,7 +10,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from src.models.job import CutSegment, TranscriptionResult, TranscriptionSegment, VadSegment
+from src.models.job import CutSegment, TranscriptionResult, TranscriptionSegment, TranscriptionWord, VadSegment
 from src.workers.process_video import _handle_failure, process_video_task
 
 
@@ -24,7 +24,10 @@ def _sample_vad_segments() -> list[VadSegment]:
 
 def _sample_transcription() -> TranscriptionResult:
     return TranscriptionResult(language="en", segments=[
-        TranscriptionSegment(text="hello world", words=[]),
+        TranscriptionSegment(text="hello world", words=[
+            TranscriptionWord(word="hello", start=0.0, end=0.5),
+            TranscriptionWord(word="world", start=0.6, end=1.0),
+        ]),
     ])
 
 
@@ -49,6 +52,7 @@ class TestProcessVideoTaskSuccess:
     @patch("src.workers.process_video.get_video_info")
     @patch("src.workers.process_video.extract_audio")
     @patch("src.workers.process_video.cut_and_concat")
+    @patch("src.workers.process_video.burn_subtitles")
     @patch("src.workers.process_video.plan_cuts")
     @patch("src.workers.process_video._get_transcription")
     @patch("src.workers.process_video._get_vad")
@@ -57,6 +61,7 @@ class TestProcessVideoTaskSuccess:
         mock_get_vad,
         mock_get_transcription,
         mock_plan_cuts,
+        mock_burn_subs,
         mock_cut_concat,
         mock_extract_audio,
         mock_get_info,
@@ -84,6 +89,7 @@ class TestProcessVideoTaskSuccess:
         # Configure FFmpeg
         mock_extract_audio.return_value = None
         mock_cut_concat.return_value = None
+        mock_burn_subs.return_value = None
         mock_get_info.side_effect = [_video_info(10.0), _output_info(4.1)]
 
         # Configure Supabase
@@ -110,6 +116,7 @@ class TestProcessVideoTaskSuccess:
         mock_trans.transcribe.assert_called_once()
         mock_plan_cuts.assert_called_once()
         mock_cut_concat.assert_called_once()
+        mock_burn_subs.assert_called_once()
         mock_supabase.upload_file.assert_called_once()
         mock_supabase.complete_job.assert_called_once()
 
@@ -119,6 +126,7 @@ class TestProcessVideoTaskSuccess:
     @patch("src.workers.process_video.get_video_info")
     @patch("src.workers.process_video.extract_audio")
     @patch("src.workers.process_video.cut_and_concat")
+    @patch("src.workers.process_video.burn_subtitles")
     @patch("src.workers.process_video.plan_cuts")
     @patch("src.workers.process_video._get_transcription")
     @patch("src.workers.process_video._get_vad")
@@ -127,6 +135,7 @@ class TestProcessVideoTaskSuccess:
         mock_get_vad,
         mock_get_transcription,
         mock_plan_cuts,
+        mock_burn_subs,
         mock_cut_concat,
         mock_extract_audio,
         mock_get_info,
@@ -148,6 +157,7 @@ class TestProcessVideoTaskSuccess:
         mock_plan_cuts.return_value = _sample_cuts()
         mock_extract_audio.return_value = None
         mock_cut_concat.return_value = None
+        mock_burn_subs.return_value = None
         mock_get_info.side_effect = [_video_info(), _output_info()]
 
         mock_supabase.update_job_status = AsyncMock()
@@ -163,13 +173,13 @@ class TestProcessVideoTaskSuccess:
             options_dict={},
         )
 
-        # Progress updates: 5, 15, 30, 60, 65, 80, 95
+        # Progress: 5, 15, 30, 60, 65, 70(cut), 75(ass gen), 85(burn), 95(upload)
         progress_calls = [c.args[1] for c in mock_supabase.update_job_progress.call_args_list]
-        assert progress_calls == [5, 15, 30, 60, 65, 80, 95]
+        assert progress_calls == [5, 15, 30, 60, 65, 70, 75, 85, 95]
 
 
 class TestNoCutsScenario:
-    """No silences detected -> pipeline completes with original video."""
+    """No silences detected -> subtitles still applied if enabled."""
 
     @pytest.mark.asyncio
     @patch("src.workers.process_video.settings")
@@ -177,14 +187,16 @@ class TestNoCutsScenario:
     @patch("src.workers.process_video.get_video_info")
     @patch("src.workers.process_video.extract_audio")
     @patch("src.workers.process_video.cut_and_concat")
+    @patch("src.workers.process_video.burn_subtitles")
     @patch("src.workers.process_video.plan_cuts")
     @patch("src.workers.process_video._get_transcription")
     @patch("src.workers.process_video._get_vad")
-    async def test_no_cuts_completes_with_original(
+    async def test_no_cuts_with_subtitles_still_processes(
         self,
         mock_get_vad,
         mock_get_transcription,
         mock_plan_cuts,
+        mock_burn_subs,
         mock_cut_concat,
         mock_extract_audio,
         mock_get_info,
@@ -205,9 +217,69 @@ class TestNoCutsScenario:
         mock_trans.transcribe = MagicMock(return_value=_sample_transcription())
         mock_get_transcription.return_value = mock_trans
 
-        # No cuts returned
         mock_plan_cuts.return_value = []
+        mock_extract_audio.return_value = None
+        mock_burn_subs.return_value = None
+        # First call: input video info, second call: subtitled output info
+        mock_get_info.side_effect = [_video_info(10.0), _output_info(10.0)]
 
+        mock_supabase.update_job_status = AsyncMock()
+        mock_supabase.download_file = AsyncMock()
+        mock_supabase.update_job_progress = AsyncMock()
+        mock_supabase.complete_job = AsyncMock()
+        mock_supabase.upload_file = AsyncMock()
+
+        result = await process_video_task(
+            ctx={},
+            job_id="job-no-cut",
+            video_storage_path="user/video.mp4",
+            options_dict={"subtitle_enabled": True},
+        )
+
+        assert result["status"] == "completed"
+
+        # No cuts, but subtitles burned -> burn_subtitles called, upload called
+        mock_cut_concat.assert_not_called()
+        mock_burn_subs.assert_called_once()
+        mock_supabase.upload_file.assert_called_once()
+
+    @pytest.mark.asyncio
+    @patch("src.workers.process_video.settings")
+    @patch("src.workers.process_video.supabase_client")
+    @patch("src.workers.process_video.get_video_info")
+    @patch("src.workers.process_video.extract_audio")
+    @patch("src.workers.process_video.cut_and_concat")
+    @patch("src.workers.process_video.burn_subtitles")
+    @patch("src.workers.process_video.plan_cuts")
+    @patch("src.workers.process_video._get_transcription")
+    @patch("src.workers.process_video._get_vad")
+    async def test_no_cuts_no_subtitles_returns_original(
+        self,
+        mock_get_vad,
+        mock_get_transcription,
+        mock_plan_cuts,
+        mock_burn_subs,
+        mock_cut_concat,
+        mock_extract_audio,
+        mock_get_info,
+        mock_supabase,
+        mock_settings,
+        tmp_path: Path,
+    ):
+        mock_settings.temp_dir = str(tmp_path)
+        mock_settings.processing_timeout_seconds = 300
+
+        mock_vad = MagicMock()
+        mock_vad.detect_speech = MagicMock(return_value=[
+            VadSegment(start=0.0, end=10.0, is_speech=True)
+        ])
+        mock_get_vad.return_value = mock_vad
+
+        mock_trans = MagicMock()
+        mock_trans.transcribe = MagicMock(return_value=_sample_transcription())
+        mock_get_transcription.return_value = mock_trans
+
+        mock_plan_cuts.return_value = []
         mock_extract_audio.return_value = None
         mock_get_info.return_value = _video_info(10.0)
 
@@ -218,16 +290,16 @@ class TestNoCutsScenario:
 
         result = await process_video_task(
             ctx={},
-            job_id="job-no-cut",
+            job_id="job-no-cut-no-sub",
             video_storage_path="user/video.mp4",
-            options_dict={},
+            options_dict={"subtitle_enabled": False},
         )
 
         assert result["status"] == "completed"
         assert result["no_cuts"] is True
 
-        # cut_and_concat and upload_file should NOT be called
         mock_cut_concat.assert_not_called()
+        mock_burn_subs.assert_not_called()
 
         # complete_job should use original path
         mock_supabase.complete_job.assert_called_once()
@@ -439,3 +511,64 @@ class TestHandleFailure:
 
         update_args = mock_sb.table.return_value.update.call_args[0][0]
         assert update_args["retry_count"] == 1  # None -> 0 + 1 = 1
+
+
+class TestSubtitleDisabledWithCuts:
+    """Cuts applied but subtitles disabled."""
+
+    @pytest.mark.asyncio
+    @patch("src.workers.process_video.settings")
+    @patch("src.workers.process_video.supabase_client")
+    @patch("src.workers.process_video.get_video_info")
+    @patch("src.workers.process_video.extract_audio")
+    @patch("src.workers.process_video.cut_and_concat")
+    @patch("src.workers.process_video.burn_subtitles")
+    @patch("src.workers.process_video.plan_cuts")
+    @patch("src.workers.process_video._get_transcription")
+    @patch("src.workers.process_video._get_vad")
+    async def test_cuts_without_subtitles(
+        self,
+        mock_get_vad,
+        mock_get_transcription,
+        mock_plan_cuts,
+        mock_burn_subs,
+        mock_cut_concat,
+        mock_extract_audio,
+        mock_get_info,
+        mock_supabase,
+        mock_settings,
+        tmp_path: Path,
+    ):
+        mock_settings.temp_dir = str(tmp_path)
+        mock_settings.processing_timeout_seconds = 300
+
+        mock_vad = MagicMock()
+        mock_vad.detect_speech = MagicMock(return_value=_sample_vad_segments())
+        mock_get_vad.return_value = mock_vad
+
+        mock_trans = MagicMock()
+        mock_trans.transcribe = MagicMock(return_value=_sample_transcription())
+        mock_get_transcription.return_value = mock_trans
+
+        mock_plan_cuts.return_value = _sample_cuts()
+        mock_extract_audio.return_value = None
+        mock_cut_concat.return_value = None
+        mock_get_info.side_effect = [_video_info(10.0), _output_info(4.1)]
+
+        mock_supabase.update_job_status = AsyncMock()
+        mock_supabase.download_file = AsyncMock()
+        mock_supabase.update_job_progress = AsyncMock()
+        mock_supabase.complete_job = AsyncMock()
+        mock_supabase.upload_file = AsyncMock()
+
+        result = await process_video_task(
+            ctx={},
+            job_id="job-cuts-no-subs",
+            video_storage_path="user123/video.mp4",
+            options_dict={"subtitle_enabled": False},
+        )
+
+        assert result["status"] == "completed"
+        mock_cut_concat.assert_called_once()
+        mock_burn_subs.assert_not_called()
+        mock_supabase.upload_file.assert_called_once()

@@ -109,3 +109,30 @@ async def cut_and_concat(
         str(output_path),
     ])
     logger.info("Cut & concat -> %s (%d segments)", output_path, n)
+
+
+async def burn_subtitles(
+    input_path: Path,
+    ass_path: Path,
+    output_path: Path,
+) -> None:
+    """Burn ASS subtitles into video using FFmpeg ass filter.
+
+    Re-encodes video (H.264 medium CRF 23) but copies audio as-is.
+    """
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    # Escape special chars in path for FFmpeg filter (colons, backslashes)
+    escaped_ass = str(ass_path).replace("\\", "\\\\").replace(":", "\\:")
+
+    await _run([
+        "ffmpeg", "-y",
+        "-i", str(input_path),
+        "-vf", f"ass={escaped_ass}",
+        "-c:v", "libx264",
+        "-preset", "medium",
+        "-crf", "23",
+        "-c:a", "copy",
+        str(output_path),
+    ])
+    logger.info("Burned subtitles -> %s", output_path)

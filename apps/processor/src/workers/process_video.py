@@ -9,7 +9,8 @@ from src.config.settings import settings
 from src.models.job import CutSegment, ProcessingOptions
 from src.services import supabase_client
 from src.services.cut_planner import plan_cuts
-from src.services.ffmpeg import cut_and_concat, extract_audio, get_video_info
+from src.services.ass_generator import generate_ass, remap_transcription
+from src.services.ffmpeg import burn_subtitles, cut_and_concat, extract_audio, get_video_info
 from src.services.transcription import TranscriptionService
 from src.services.vad import VadService
 
@@ -123,8 +124,45 @@ async def _run_pipeline(
     await supabase_client.update_job_progress(job_id, 65)
 
     if not cuts:
-        # No silences detected — complete with original as output
+        # No silences detected — use original video as base
         logger.info("Job %s: no silences detected, nothing to cut", job_id)
+        current_video = video_path
+        await supabase_client.update_job_progress(job_id, 70)
+    else:
+        # 6. Cut and concat (65% -> 70%)
+        logger.info("Job %s: cutting video (%d segments)...", job_id, len(cuts))
+        current_video = work_dir / "cut.mp4"
+        await cut_and_concat(video_path, cuts, current_video)
+        await supabase_client.update_job_progress(job_id, 70)
+
+    # 7. Subtitles (70% -> 85%)
+    if options.subtitle_enabled:
+        logger.info("Job %s: generating subtitles...", job_id)
+
+        # Remap timestamps to cut timeline (no-op if no cuts)
+        remapped = remap_transcription(transcription, cuts) if cuts else transcription
+
+        # Generate ASS file
+        video_w = info.get("width") or 1920
+        video_h = info.get("height") or 1080
+        ass_content = generate_ass(remapped, options, video_w, video_h)
+        ass_path = work_dir / "subtitles.ass"
+        ass_path.write_text(ass_content, encoding="utf-8")
+        await supabase_client.update_job_progress(job_id, 75)
+
+        # Burn subtitles into video
+        subtitled_path = work_dir / "subtitled.mp4"
+        await burn_subtitles(current_video, ass_path, subtitled_path)
+        current_video = subtitled_path
+        await supabase_client.update_job_progress(job_id, 85)
+    else:
+        await supabase_client.update_job_progress(job_id, 85)
+
+    # Determine if we need to upload (any processing happened?)
+    needs_upload = cuts or options.subtitle_enabled
+
+    if not needs_upload:
+        # Nothing changed — complete with original
         elapsed_ms = int((time.monotonic() - start_time) * 1000)
         await supabase_client.complete_job(
             job_id,
@@ -137,24 +175,17 @@ async def _run_pipeline(
         )
         return {"status": "completed", "no_cuts": True}
 
-    # 6. Cut and concat (65% -> 80%)
-    logger.info("Job %s: cutting video (%d segments)...", job_id, len(cuts))
-    output_path = work_dir / "output.mp4"
-    await cut_and_concat(video_path, cuts, output_path)
-    await supabase_client.update_job_progress(job_id, 80)
-
     # Get output info
-    output_info = await get_video_info(output_path)
+    output_info = await get_video_info(current_video)
 
-    # 7. Upload result (80% -> 95%)
+    # 8. Upload result (85% -> 95%)
     logger.info("Job %s: uploading result...", job_id)
-    # Derive user_id from storage path: "{user_id}/filename.mp4"
     user_id = video_storage_path.split("/")[0]
     output_storage_path = f"{user_id}/{job_id}/processed.mp4"
-    await supabase_client.upload_file("processed", output_storage_path, output_path)
+    await supabase_client.upload_file("processed", output_storage_path, current_video)
     await supabase_client.update_job_progress(job_id, 95)
 
-    # 8. Complete (95% -> 100%)
+    # 9. Complete (95% -> 100%)
     elapsed_ms = int((time.monotonic() - start_time) * 1000)
     await supabase_client.complete_job(
         job_id,

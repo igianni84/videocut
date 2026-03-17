@@ -91,13 +91,15 @@ VideoCut/
 │   │   │   ├── components/
 │   │   │   │   ├── ui/               # shadcn/ui (button, card, badge, progress, etc.)
 │   │   │   │   ├── upload/           # VideoCard, VideoList, UploadZone, etc.
-│   │   │   │   └── jobs/             # ProcessButton, JobStatusBadge, JobProgress
+│   │   │   │   ├── jobs/             # ProcessingOptionsDialog, JobStatusBadge, JobProgress
+│   │   │   │   └── subtitles/        # SubtitleCustomizer, SubtitlePreview
 │   │   │   ├── hooks/
 │   │   │   │   └── use-job-status.ts # Realtime job subscription
 │   │   │   ├── lib/
 │   │   │   │   ├── supabase/         # client.ts, server.ts, middleware.ts
 │   │   │   │   ├── videos/           # types.ts, actions.ts, validation.ts
 │   │   │   │   ├── jobs/             # types.ts, actions.ts
+│   │   │   │   ├── subtitles/        # types.ts (SubtitleStyle, font/color/position types)
 │   │   │   │   ├── utils.ts
 │   │   │   │   └── utils.test.ts
 │   │   │   ├── test/
@@ -122,13 +124,14 @@ VideoCut/
 │       │   ├── config/
 │       │   │   └── settings.py       # Env vars via pydantic-settings
 │       │   ├── models/
-│       │   │   └── job.py            # Pydantic models (ProcessRequest, VadSegment, etc.)
+│       │   │   └── job.py            # Pydantic models (ProcessRequest, VadSegment, SubtitleStyle, ProcessingOptions, etc.)
 │       │   ├── services/
 │       │   │   ├── supabase_client.py  # Supabase service-role client
 │       │   │   ├── ffmpeg.py           # FFmpeg subprocess wrapper
 │       │   │   ├── vad.py              # Silero VAD service
 │       │   │   ├── transcription.py    # faster-whisper service
-│       │   │   └── cut_planner.py      # Cut plan algorithm
+│       │   │   ├── cut_planner.py      # Cut plan algorithm
+│       │   │   └── ass_generator.py    # ASS subtitle generation with karaoke tags
 │       │   ├── workers/
 │       │   │   ├── process_video.py    # arq task (pipeline orchestrator)
 │       │   │   └── worker_settings.py  # arq WorkerSettings

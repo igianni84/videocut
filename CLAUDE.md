@@ -60,8 +60,8 @@
 ### Stato Corrente
 | | |
 |---|---|
-| **Ultima fase completata** | Phase 3 — Video Processing Pipeline (2026-03-17) |
-| **Prossima fase** | Phase 4 — Dynamic Subtitles |
+| **Ultima fase completata** | Phase 4 — Dynamic Subtitles (2026-03-17) |
+| **Prossima fase** | Phase 5 — Advanced Processing Features |
 
 ### Reference Index
 

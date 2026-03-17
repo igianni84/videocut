@@ -104,23 +104,32 @@ _Deliverables e verifiche dettagliate per ogni fase → `tasks/plans/master-plan
 
 ## Fase 4 — Dynamic Subtitles
 
-- [ ] Generazione ASS/SSA da word-level timestamps (karaoke tags \K)
-- [ ] Raggruppamento parole in righe (max 5 parole per riga su 9:16, max 8 su 16:9)
-- [ ] Animazione highlight: parola corrente cambia colore mentre viene pronunciata
-- [ ] Burn-in sottotitoli con FFmpeg (`ass` filter)
-- [ ] UI personalizzazione sottotitoli:
-  - [ ] Font (selezionabile da lista predefinita)
-  - [ ] Colore testo base + colore highlight
-  - [ ] Dimensione testo
-  - [ ] Posizione verticale (alto, centro, basso)
-  - [ ] Stile bordo/ombra
-- [ ] Supporto multi-lingua (IT, EN, ES, FR, DE, PT) — auto-detect o selezione manuale
-- [ ] Preview real-time dei sottotitoli (almeno mock statico)
-- [ ] **Test:** Sottotitoli generati correttamente per video in italiano
-- [ ] **Test:** Sottotitoli generati correttamente per video in inglese
-- [ ] **Test:** Personalizzazione applicata correttamente al render
-- [ ] **Test:** Auto-detect lingua funziona
-- [ ] **Docs:** Aggiornare docs/
+- [x] Generazione ASS/SSA da word-level timestamps (karaoke tags \K)
+- [x] Raggruppamento parole in righe (max 5 parole per riga su 9:16, max 8 su 16:9)
+- [x] Animazione highlight: parola corrente cambia colore mentre viene pronunciata
+- [x] Burn-in sottotitoli con FFmpeg (`ass` filter)
+- [x] UI personalizzazione sottotitoli:
+  - [x] Font (selezionabile da lista predefinita)
+  - [x] Colore testo base + colore highlight
+  - [x] Dimensione testo
+  - [x] Posizione verticale (alto, centro, basso)
+  - [x] Stile bordo/ombra
+- [x] Supporto multi-lingua (IT, EN, ES, FR, DE, PT) — auto-detect o selezione manuale
+- [x] Preview real-time dei sottotitoli (almeno mock statico)
+- [x] **Test:** Sottotitoli generati correttamente per video in italiano
+- [x] **Test:** Sottotitoli generati correttamente per video in inglese
+- [x] **Test:** Personalizzazione applicata correttamente al render
+- [x] **Test:** Auto-detect lingua funziona
+- [x] **Docs:** Aggiornare docs/
+
+### Note post-completamento
+- 114 Python tests (67 new/modified for ASS generator, FFmpeg burn, worker subtitle pipeline)
+- 103 frontend tests (22 new for subtitle types, preview, customizer, dialog)
+- 217 total tests (114 Python + 103 frontend)
+- fonts-montserrat, fonts-inter, fonts-roboto installed in Dockerfile
+- ASS karaoke tags `\K` for word-by-word highlight
+- Timestamp remapping handles cut timeline correctly
+- ProcessButton replaced by ProcessingOptionsDialog in VideoCard
 
 ## Fase 5 — Advanced Processing Features
 

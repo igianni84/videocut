@@ -10,7 +10,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from src.models.job import CutSegment
-from src.services.ffmpeg import _run, cut_and_concat, extract_audio, get_video_info
+from src.services.ffmpeg import _run, burn_subtitles, cut_and_concat, extract_audio, get_video_info
 
 
 def _make_mock_process(returncode: int = 0, stdout: bytes = b"", stderr: bytes = b""):
@@ -217,3 +217,59 @@ class TestCutAndConcat:
             await cut_and_concat(tmp_path / "in.mp4", segments, output_path)
 
         assert output_path.parent.exists()
+
+
+# ── burn_subtitles ────────────────────────────────────────────────
+
+
+class TestBurnSubtitles:
+    @pytest.mark.asyncio
+    async def test_builds_correct_command(self, tmp_path: Path):
+        input_path = tmp_path / "video.mp4"
+        ass_path = tmp_path / "subs.ass"
+        output_path = tmp_path / "out.mp4"
+
+        proc = _make_mock_process()
+        with patch("src.services.ffmpeg.asyncio.create_subprocess_exec", return_value=proc) as mock_exec:
+            await burn_subtitles(input_path, ass_path, output_path)
+
+        cmd = list(mock_exec.call_args[0])
+        assert cmd[0] == "ffmpeg"
+        assert "-y" in cmd
+        assert "-i" in cmd
+        assert str(input_path) in cmd
+        assert "-vf" in cmd
+        # ass filter should reference the ass file path
+        vf_idx = cmd.index("-vf")
+        assert "ass=" in cmd[vf_idx + 1]
+        assert "-c:v" in cmd
+        assert "libx264" in cmd
+        assert "-c:a" in cmd
+        assert "copy" in cmd
+        assert str(output_path) in cmd
+
+    @pytest.mark.asyncio
+    async def test_creates_output_directory(self, tmp_path: Path):
+        input_path = tmp_path / "video.mp4"
+        ass_path = tmp_path / "subs.ass"
+        output_path = tmp_path / "deep" / "nested" / "out.mp4"
+
+        proc = _make_mock_process()
+        with patch("src.services.ffmpeg.asyncio.create_subprocess_exec", return_value=proc):
+            await burn_subtitles(input_path, ass_path, output_path)
+
+        assert output_path.parent.exists()
+
+    @pytest.mark.asyncio
+    async def test_audio_copy_not_reencode(self, tmp_path: Path):
+        proc = _make_mock_process()
+        with patch("src.services.ffmpeg.asyncio.create_subprocess_exec", return_value=proc) as mock_exec:
+            await burn_subtitles(
+                tmp_path / "in.mp4",
+                tmp_path / "subs.ass",
+                tmp_path / "out.mp4",
+            )
+
+        cmd = list(mock_exec.call_args[0])
+        ca_idx = cmd.index("-c:a")
+        assert cmd[ca_idx + 1] == "copy"

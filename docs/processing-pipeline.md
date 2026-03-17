@@ -64,7 +64,7 @@ Input Video (mp4/mov/webm)
     ▼
 [6] VIDEO CUTTING ─────────────────────────────────────────
     FFmpeg: taglia e concatena i segmenti da mantenere
-    - Audio crossfade di 50ms ad ogni punto di taglio
+    - Audio crossfade di 25ms ad ogni punto di taglio
     - Usa concat demuxer per efficienza
     - Re-encode video (H.264) + audio (AAC)
     │
@@ -107,6 +107,14 @@ Input Video (mp4/mov/webm)
     - Colore highlight (parola corrente)
     - Outline/shadow per leggibilità
     - Posizione verticale (top/center/bottom)
+
+    TIMESTAMP REMAPPING (dopo tagli):
+    - Dopo il cut plan (step 6), i timestamps originali delle parole
+      non corrispondono più alla timeline del video tagliato
+    - Il remapping calcola il nuovo timestamp di ogni parola
+      sottraendo la durata cumulativa dei segmenti rimossi
+    - Esempio: parola a t=5.0s, se 1.2s di silenzi rimossi prima → t=3.8s
+    - Il remapping è applicato PRIMA della generazione ASS
     │
     ▼
 [9] SMART CROP (se cambio formato) ───────────────────────
@@ -259,3 +267,65 @@ pytest-asyncio>=0.24.0
 | Storage upload fallito | Retry 3x con exponential backoff |
 | Out of memory | Status `failed`, log per alerting, suggerire video più corto |
 | Processing timeout (5min) | Kill job, status `failed`, cleanup file |
+
+## Dynamic Subtitles Pipeline (Phase 4)
+
+La generazione sottotitoli dinamici si inserisce nella pipeline principale tra il taglio video (step 6) e il burn-in finale (step 10).
+
+### Flusso
+
+```
+Word-level timestamps (da step 3)
+    │
+    ▼
+[A] TIMESTAMP REMAPPING ─────────────────────────────────
+    Dopo i tagli (step 6), la timeline del video è cambiata.
+    I timestamps originali delle parole vanno rimappati:
+    - Per ogni segmento mantenuto dal cut plan, calcola l'offset cumulativo
+    - Sottrai la durata dei gap rimossi da ogni timestamp
+    - Le parole che cadono in segmenti rimossi vengono scartate
+    Risultato: word timestamps allineati alla timeline del video tagliato
+    │
+    ▼
+[B] ASS GENERATION ──────────────────────────────────────
+    ass_generator.py produce il file .ass con:
+    - Karaoke tags \K per highlight parola-per-parola
+    - \K{durata_centisecondi} prima di ogni parola
+    - La parola corrente cambia da colore base a colore highlight
+    - Raggruppamento in righe (max 5 parole 9:16, max 8 parole 16:9)
+    - Nuova riga quando gap tra parole > 1s
+    - SubtitleStyle applicato: font, size, colors, position, outline, shadow
+    │
+    ▼
+[C] FFMPEG BURN-IN ──────────────────────────────────────
+    FFmpeg applica i sottotitoli al video tramite il filtro `ass`:
+    ffmpeg -i cut_video.mp4 \
+      -vf "ass=subtitles.ass" \
+      -c:v libx264 -preset medium -crf 23 \
+      -c:a aac -b:a 128k \
+      -movflags +faststart \
+      output.mp4
+
+    Font embedding:
+    - Montserrat, Inter, Roboto installati nel Dockerfile
+    - FFmpeg risolve i font dal sistema durante il burn-in
+```
+
+### Dettagli Karaoke Tag \K
+
+Il formato ASS usa `\K` (maiuscolo) per il karaoke "fill" mode:
+- `{\K50}Hello` = la parola "Hello" si riempie del colore highlight in 500ms
+- La durata in centisecondi corrisponde alla durata della parola (end - start)
+- Il colore base (secondary color in ASS) e il colore highlight (primary color) sono configurabili dall'utente
+
+### Timestamp Remapping — Esempio
+
+```
+Timeline originale:  [0.0 ─── 2.0] silenzio [2.5 ─── 5.0] silenzio [5.5 ─── 8.0]
+Cut plan mantiene:   [0.0 ─── 2.0]          [2.5 ─── 5.0]          [5.5 ─── 8.0]
+Timeline tagliata:   [0.0 ─── 2.0][2.0 ─── 4.5][4.5 ─── 7.0]
+
+Parola "test" a t=5.8s originale:
+- Gap rimossi prima: 0.5s (2.0→2.5) + 0.5s (5.0→5.5) = 1.0s
+- Nuovo timestamp: 5.8 - 1.0 = 4.8s
+```

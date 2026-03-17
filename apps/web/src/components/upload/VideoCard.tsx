@@ -16,7 +16,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { formatDuration, formatFileSize } from "@/lib/videos/validation"
-import { ProcessButton } from "@/components/jobs/ProcessButton"
+import { ProcessingOptionsDialog } from "@/components/jobs/ProcessingOptionsDialog"
 import { JobProgress } from "@/components/jobs/JobProgress"
 import type { Video } from "@/lib/videos/types"
 import type { Job } from "@/lib/jobs/types"
@@ -100,7 +100,7 @@ export function VideoCard({
             </Badge>
           )}
           {canProcess && (
-            <ProcessButton
+            <ProcessingOptionsDialog
               videoId={video.id}
               disabled={isProcessing}
               onProcessStarted={() => onProcess(video.id)}
