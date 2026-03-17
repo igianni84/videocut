@@ -5,33 +5,20 @@ SaaS per content creator che automatizza l'editing video: rimozione pause, sotto
 
 ---
 
+## Stato Progetto
+
+| | |
+|---|---|
+| **Ultima fase completata** | Phase 1 — Authentication & User Management (2026-03-17) |
+| **Prossima fase** | Phase 2 — Video Upload & Storage |
+
+---
+
 ## Architettura
 
-```
-┌────────────────────┐      ┌───────────────┐      ┌─────────────────────┐
-│  Next.js 16        │      │  Supabase     │      │  Python Service     │
-│  (Vercel)          │◄────▶│  (Cloud)      │◄────▶│  (Railway)          │
-│                    │      │               │      │                     │
-│  - UI/UX           │      │  ┌──────────┐ │      │  - FastAPI (API)    │
-│  - Auth flow       │      │  │PostgreSQL│ │      │  - arq (job queue)  │
-│  - Upload trigger  │      │  │(users,   │ │      │  - CrisperWhisper   │
-│  - Stripe billing  │      │  │jobs,     │ │      │  - FFmpeg 8         │
-│  - Preview player  │      │  │subs)     │ │      │  - MediaPipe        │
-│  - Download        │      │  └──────────┘ │      │  - Silero VAD       │
-└────────────────────┘      │  ┌──────────┐ │      │                     │
-                            │  │Storage   │ │      │  ┌───────────────┐  │
-┌────────────────────┐      │  │(video    │ │      │  │ Redis/Upstash │  │
-│  Stripe            │      │  │files)    │ │      │  │ (job queue)   │  │
-│  (Payments)        │◄────▶│  └──────────┘ │      │  └───────────────┘  │
-└────────────────────┘      │  ┌──────────┐ │      └─────────────────────┘
-                            │  │Realtime  │ │
-                            │  │(job      │ │
-                            │  │status)   │ │
-                            │  └──────────┘ │
-                            └───────────────┘
-```
+_Diagramma dettagliato → `docs/architecture.md`_
 
-**Flusso dati:**
+**Flusso dati (summary):**
 1. User upload video → Supabase Storage (signed URL da API route)
 2. Next.js API route → crea job in Supabase DB (status: `queued`) + push a Redis
 3. Python arq worker consuma da Redis → scarica video → processa → upload risultato
@@ -121,8 +108,11 @@ SaaS per content creator che automatizza l'editing video: rimozione pause, sotto
 
 ---
 
-### Fase 1 — Authentication & User Management
+### Fase 1 — Authentication & User Management ✅
 > Login completo con magic link, Google e Apple. Utenti persistiti in Supabase.
+
+**Completata:** 2026-03-17
+**Documentazione:** `docs/auth.md`
 
 **Deliverables:**
 - Supabase Auth providers configurati (magic link, Google, Apple)
@@ -285,7 +275,7 @@ SaaS per content creator che automatizza l'editing video: rimozione pause, sotto
 | Redis | Upstash | Serverless |
 | Payments | Stripe | Test mode fino a Fase 8 |
 
-**Branch strategy:** `main` (production), `develop` (staging), `feature/*` (feature branches)
+**Branch strategy:** `main` (production), `feature/*` (feature branches)
 
 ---
 

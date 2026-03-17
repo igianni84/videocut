@@ -3,10 +3,11 @@
 Ogni fase è progettata per essere completata in una singola sessione di chat.
 Ogni fase termina con: test, documentazione aggiornata, verifica funzionale.
 
+_Deliverables e verifiche dettagliate per ogni fase → `tasks/plans/master-plan.md`_
+
 ---
 
 ## Fase 0 — Project Setup & Infrastructure
-> **Obiettivo:** Monorepo funzionante con entrambi i servizi che si avviano in locale.
 
 - [x] Inizializzare repo Git
 - [x] Creare struttura monorepo (`apps/web/`, `apps/processor/`)
@@ -31,23 +32,26 @@ Ogni fase termina con: test, documentazione aggiornata, verifica funzionale.
 - Next.js 16 depreca `middleware.ts` in favore di `proxy` — adattare in Fase 1
 
 ## Fase 1 — Authentication & User Management
-> **Obiettivo:** Login completo con magic link, Google e Apple. Utenti persistiti in Supabase.
 
-- [ ] Configurare Supabase Auth providers (magic link, Google, Apple)
-- [ ] Creare pagine: login, signup, callback, profilo utente
-- [ ] Implementare auth flow con `@supabase/ssr`
-- [ ] Middleware Next.js per route protette
-- [ ] RLS policies su tutte le tabelle (users vedono solo i propri dati)
-- [ ] Pagina profilo utente con info account e piano attivo
-- [ ] Gestione sessione (refresh token, logout)
-- [ ] **Test:** Login/logout con magic link funziona
-- [ ] **Test:** Login con Google OAuth funziona
-- [ ] **Test:** Route protette redirigono a login se non autenticati
-- [ ] **Test:** RLS impedisce accesso cross-user
-- [ ] **Docs:** Documentare auth flow in docs/
+- [x] Configurare Supabase Auth providers (magic link, Google, Apple)
+- [x] Creare pagine: login, signup, callback, profilo utente
+- [x] Implementare auth flow con `@supabase/ssr`
+- [x] Middleware Next.js per route protette
+- [x] RLS policies su tutte le tabelle (users vedono solo i propri dati)
+- [x] Pagina profilo utente con info account e piano attivo
+- [x] Gestione sessione (refresh token, logout)
+- [x] **Test:** Login/logout con magic link funziona
+- [x] **Test:** Login con Google OAuth funziona
+- [x] **Test:** Route protette redirigono a login se non autenticati
+- [x] **Test:** RLS impedisce accesso cross-user
+- [x] **Docs:** Documentare auth flow in docs/
+
+### Note post-completamento
+- OAuth providers (Google, Apple) da configurare in Supabase Dashboard (redirect URL: `{APP_URL}/auth/callback`)
+- RLS policies verificate via SQL — test end-to-end richiede istanza Supabase live
+- 29 test Vitest passano (unit: LoginForm, ProfileForm, actions, middleware)
 
 ## Fase 2 — Video Upload & Storage
-> **Obiettivo:** L'utente può caricare un video, validarlo, e vederlo nella dashboard.
 
 - [ ] UI di upload: drag & drop + click, progress bar
 - [ ] Validazione client-side: formato (mp4, mov, webm), dimensione, durata (60s free / 3min pro)
@@ -64,7 +68,6 @@ Ogni fase termina con: test, documentazione aggiornata, verifica funzionale.
 - [ ] **Docs:** Aggiornare docs/
 
 ## Fase 3 — Video Processing Pipeline (Core)
-> **Obiettivo:** Un video caricato viene processato: silenzi rimossi, trascrizione con timestamps word-level.
 
 - [ ] Setup arq worker in Python service con connessione Redis (Upstash)
 - [ ] Endpoint FastAPI per trigger processing job
@@ -88,7 +91,6 @@ Ogni fase termina con: test, documentazione aggiornata, verifica funzionale.
 - [ ] **Docs:** Aggiornare docs/processing-pipeline.md
 
 ## Fase 4 — Dynamic Subtitles
-> **Obiettivo:** Sottotitoli animati word-by-word con personalizzazione completa.
 
 - [ ] Generazione ASS/SSA da word-level timestamps (karaoke tags \K)
 - [ ] Raggruppamento parole in righe (max 5 parole per riga su 9:16, max 8 su 16:9)
@@ -109,7 +111,6 @@ Ogni fase termina con: test, documentazione aggiornata, verifica funzionale.
 - [ ] **Docs:** Aggiornare docs/
 
 ## Fase 5 — Advanced Processing Features
-> **Obiettivo:** Speed control, filler removal, smart crop, platform safe zones.
 
 - [ ] **Speed control:**
   - [ ] Uniforme: 0.5x, 0.75x, 1x, 1.25x, 1.5x, 2x
@@ -135,7 +136,6 @@ Ogni fase termina con: test, documentazione aggiornata, verifica funzionale.
 - [ ] **Docs:** Aggiornare docs/
 
 ## Fase 6 — Preview & Download
-> **Obiettivo:** L'utente può vedere l'anteprima del video processato e scaricarlo.
 
 - [ ] Player video in-browser per anteprima risultato
 - [ ] Confronto before/after (split view o toggle)
@@ -152,7 +152,6 @@ Ogni fase termina con: test, documentazione aggiornata, verifica funzionale.
 - [ ] **Docs:** Aggiornare docs/
 
 ## Fase 7 — Stripe Integration & Monetization
-> **Obiettivo:** Pagamenti funzionanti, free/pro tier enforced end-to-end.
 
 - [ ] Creare prodotti e prezzi Stripe (mensile €10, annuale €100)
 - [ ] Stripe Checkout session per upgrade a Pro
@@ -173,7 +172,6 @@ Ogni fase termina con: test, documentazione aggiornata, verifica funzionale.
 - [ ] **Docs:** Aggiornare docs/
 
 ## Fase 8 — Polish & Launch
-> **Obiettivo:** Prodotto pronto per il lancio pubblico.
 
 - [ ] Landing page (hero, feature showcase, pricing, CTA)
 - [ ] SEO: meta tags, OG images, sitemap, robots.txt

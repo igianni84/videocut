@@ -84,75 +84,75 @@ VideoCut/
 ├── apps/
 │   ├── web/                          # Next.js 16 frontend
 │   │   ├── src/
-│   │   │   ├── app/                  # App Router pages & API routes
-│   │   │   │   ├── (auth)/           # Auth pages (login, signup, callback)
-│   │   │   │   ├── (dashboard)/      # Protected dashboard pages
-│   │   │   │   ├── api/              # API routes
-│   │   │   │   │   ├── jobs/         # Job creation, status
-│   │   │   │   │   ├── upload/       # Signed URL generation
-│   │   │   │   │   └── webhooks/     # Stripe webhooks
-│   │   │   │   └── layout.tsx
-│   │   │   ├── components/           # UI components
-│   │   │   │   ├── ui/               # shadcn/ui components
-│   │   │   │   ├── auth/             # Auth-related components
-│   │   │   │   ├── upload/           # Upload components
-│   │   │   │   ├── editor/           # Video editor/preview
-│   │   │   │   └── billing/          # Stripe/pricing components
-│   │   │   ├── lib/                  # Utilities
-│   │   │   │   ├── supabase/         # Supabase client setup
-│   │   │   │   ├── stripe/           # Stripe helpers
-│   │   │   │   └── utils.ts
-│   │   │   └── types/                # TypeScript types (generated + custom)
-│   │   ├── public/
+│   │   │   ├── app/                  # App Router pages
+│   │   │   │   ├── globals.css
+│   │   │   │   ├── layout.tsx
+│   │   │   │   └── page.tsx
+│   │   │   ├── components/
+│   │   │   │   └── ui/               # shadcn/ui (button, card)
+│   │   │   ├── lib/
+│   │   │   │   ├── supabase/         # client.ts, server.ts, middleware.ts
+│   │   │   │   ├── utils.ts
+│   │   │   │   └── utils.test.ts
+│   │   │   ├── test/
+│   │   │   │   └── setup.ts
+│   │   │   ├── types/
+│   │   │   │   └── database.types.ts # Generated via supabase gen types
+│   │   │   └── middleware.ts
+│   │   ├── public/                   # Static assets (SVGs)
+│   │   ├── components.json           # shadcn/ui config
+│   │   ├── eslint.config.mjs
 │   │   ├── next.config.ts
+│   │   ├── postcss.config.mjs
 │   │   ├── tsconfig.json
+│   │   ├── vitest.config.ts
 │   │   └── package.json
 │   │
 │   └── processor/                    # Python processing service
 │       ├── src/
-│       │   ├── api/                  # FastAPI endpoints
-│       │   │   └── routes.py
-│       │   ├── workers/              # arq job workers
-│       │   │   └── video_worker.py
-│       │   ├── services/             # Business logic
-│       │   │   ├── transcription.py  # CrisperWhisper
-│       │   │   ├── silence.py        # Silero VAD + pause detection
-│       │   │   ├── subtitles.py      # ASS generation
-│       │   │   ├── video.py          # FFmpeg operations
-│       │   │   ├── crop.py           # MediaPipe face detection + smart crop
-│       │   │   └── filler.py         # Filler word detection
-│       │   ├── models/               # Pydantic models
-│       │   ├── config/               # Settings, constants
-│       │   │   ├── settings.py       # Env vars via pydantic-settings
-│       │   │   ├── safe_zones.py     # Platform safe zone constants
-│       │   │   └── filler_words.py   # Per-language filler dictionaries
+│       │   ├── api/
+│       │   │   ├── dependencies.py   # API key auth
+│       │   │   └── routes.py         # Health + job endpoints
+│       │   ├── config/
+│       │   │   └── settings.py       # Env vars via pydantic-settings
+│       │   ├── models/               # (Phase 3+)
+│       │   ├── services/             # (Phase 3+)
+│       │   ├── workers/              # (Phase 3+)
 │       │   └── main.py               # FastAPI app entry point
 │       ├── tests/
+│       │   └── test_health.py
 │       ├── Dockerfile
 │       ├── pyproject.toml
 │       └── requirements.txt
 │
-├── docs/                             # Documentazione di progetto
+├── docs/
 │   ├── architecture.md               # Questo file
-│   ├── processing-pipeline.md        # Dettaglio pipeline video
-│   ├── database-schema.md            # Schema Supabase
-│   └── api-spec.md                   # Specifiche API
+│   ├── processing-pipeline.md
+│   ├── database-schema.md
+│   └── api-spec.md
 │
-├── tasks/                            # Project management
-│   ├── todo.md                       # Piano fasi (checklist)
-│   ├── lessons.md                    # Lezioni apprese
-│   └── plans/                        # Piani dettagliati per fase
-│       ├── master-plan.md            # Piano master completo
-│       └── phase-0-setup.md          # Dettaglio Fase 0 (completata)
+├── supabase/
+│   ├── migrations/
+│   │   └── 20260317000000_initial_schema.sql
+│   └── config.toml
+│
+├── tasks/
+│   ├── todo.md
+│   ├── lessons.md
+│   └── plans/
+│       ├── master-plan.md
+│       └── phase-0-setup.md
 │
 ├── .claude/
-│   └── commands/                     # Custom Claude Code skills
+│   └── commands/
 │       └── phase.md                  # /phase command
 │
-├── .env.example                      # Template variabili d'ambiente
-├── docker-compose.yml                # Dev locale
+├── .env.example
+├── docker-compose.yml
+├── package.json                      # Workspace root
+├── package-lock.json
 ├── .gitignore
-└── CLAUDE.md                         # Istruzioni per Claude
+└── CLAUDE.md
 ```
 
 ## Decisioni Architetturali

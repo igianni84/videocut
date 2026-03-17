@@ -9,11 +9,12 @@ Sei incaricato di eseguire una fase specifica del progetto VideoCut.
 ## Istruzioni
 
 1. **Leggi il contesto:** Prima di tutto, leggi questi file per avere il quadro completo:
-   - `CLAUDE.md` — regole del progetto e tech stack
-   - `tasks/todo.md` — piano completo delle fasi
+   - `CLAUDE.md` — regole, convenzioni, stato corrente, reference index
+   - `tasks/plans/master-plan.md` — piano completo, tech stack, tiers, invarianti, gotchas
+   - `tasks/todo.md` — checklist delle fasi
    - `tasks/lessons.md` — errori da non ripetere
-   - `docs/architecture.md` — architettura di sistema
-   - Il documento specifico della fase richiesta in `tasks/todo.md`
+   - `docs/architecture.md` — architettura, diagramma, file tree
+   - Il piano dettagliato della fase in `tasks/plans/phase-*.md` (se esiste)
 
 2. **Identifica la fase:** L'utente ha richiesto la fase: $ARGUMENTS
    - Se non specificata, chiedi quale fase eseguire
@@ -30,18 +31,24 @@ Sei incaricato di eseguire una fase specifica del progetto VideoCut.
    - Aggiorna il checkbox in `tasks/todo.md` quando completato
    - Se incontri un blocco, FERMATI e ripianifica
 
-5. **Verifica:** Al termine della fase:
-   - Esegui TUTTI i test elencati nella fase
-   - Verifica che ogni test passi
-   - Se un test fallisce, correggi prima di procedere
+5. **Test & Fix Loop (automatico):** Al termine dell'implementazione:
+   - Esegui TUTTI i test: `npm test -w apps/web` e `cd apps/processor && uv run python -m pytest`
+   - Se un test fallisce: analizza l'errore, correggi il codice, ri-esegui i test
+   - Ripeti fino a quando tutti i test passano (max 3 iterazioni, poi chiedi all'utente)
+   - NON procedere finché tutti i test non sono verdi
 
-6. **Documenta:** Dopo la verifica:
-   - Aggiorna la documentazione in `docs/` se necessario
-   - Aggiorna `tasks/todo.md` con i checkbox completati
-   - Se hai imparato qualcosa di nuovo, aggiorna `tasks/lessons.md`
-   - Fai un summary finale di cosa è stato fatto
+6. **Allinea Documentazione (automatico):** Dopo che tutti i test passano:
+   - `tasks/todo.md` — segna i checkbox completati
+   - `CLAUDE.md` → aggiorna "Stato Corrente" (ultima fase completata, prossima fase)
+   - `tasks/plans/master-plan.md` → aggiorna "Stato Progetto"
+   - `docs/` → aggiorna se la fase ha introdotto nuove API, schema, architettura, pipeline
+   - `tasks/lessons.md` → aggiungi se hai imparato qualcosa di nuovo
 
-7. **Commit:** Proponi un commit con messaggio descrittivo della fase completata.
+7. **Commit & Push (automatico):** Dopo documentazione allineata:
+   - `git add` dei file modificati (mai file sensibili: .env, credentials, etc.)
+   - Commit con messaggio descrittivo: `Phase N: <summary>`
+   - `git push origin <branch-corrente>`
+   - Summary finale per l'utente con cosa è stato fatto
 
 ## Regole
 
