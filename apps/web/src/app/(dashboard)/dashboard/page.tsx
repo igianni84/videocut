@@ -1,6 +1,7 @@
 import Link from "next/link"
 
 import { getProfile } from "@/lib/auth/actions"
+import { getVideos } from "@/lib/videos/actions"
 import { Badge } from "@/components/ui/badge"
 import {
   Card,
@@ -18,6 +19,8 @@ export default async function DashboardPage() {
   const profile = await getProfile()
 
   if (!profile) return null
+
+  const videos = await getVideos()
 
   return (
     <div className="flex flex-col gap-6">
@@ -47,6 +50,22 @@ export default async function DashboardPage() {
                 {profile.subscription_status}
               </span>
             </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Videos</CardTitle>
+            <CardDescription>Your uploaded videos</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <p className="text-2xl font-bold">{videos.length}</p>
+            <Link
+              href="/videos"
+              className="text-sm font-medium text-primary hover:underline"
+            >
+              Manage videos
+            </Link>
           </CardContent>
         </Card>
 
