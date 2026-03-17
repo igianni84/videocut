@@ -11,6 +11,10 @@ dependencies = [
     "pydantic-settings>=2.7",
     "supabase>=2.11",
     "httpx>=0.28",
+    "faster-whisper>=1.1.0",
+    "silero-vad>=5.1",
+    "torch>=2.6.0",
+    "torchaudio>=2.6.0",
 ]
 
 [project.optional-dependencies]

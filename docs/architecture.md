@@ -89,9 +89,15 @@ VideoCut/
 │   │   │   │   ├── layout.tsx
 │   │   │   │   └── page.tsx
 │   │   │   ├── components/
-│   │   │   │   └── ui/               # shadcn/ui (button, card)
+│   │   │   │   ├── ui/               # shadcn/ui (button, card, badge, progress, etc.)
+│   │   │   │   ├── upload/           # VideoCard, VideoList, UploadZone, etc.
+│   │   │   │   └── jobs/             # ProcessButton, JobStatusBadge, JobProgress
+│   │   │   ├── hooks/
+│   │   │   │   └── use-job-status.ts # Realtime job subscription
 │   │   │   ├── lib/
 │   │   │   │   ├── supabase/         # client.ts, server.ts, middleware.ts
+│   │   │   │   ├── videos/           # types.ts, actions.ts, validation.ts
+│   │   │   │   ├── jobs/             # types.ts, actions.ts
 │   │   │   │   ├── utils.ts
 │   │   │   │   └── utils.test.ts
 │   │   │   ├── test/
@@ -112,15 +118,29 @@ VideoCut/
 │       ├── src/
 │       │   ├── api/
 │       │   │   ├── dependencies.py   # API key auth
-│       │   │   └── routes.py         # Health + job endpoints
+│       │   │   └── routes.py         # Health + process endpoints
 │       │   ├── config/
 │       │   │   └── settings.py       # Env vars via pydantic-settings
-│       │   ├── models/               # (Phase 3+)
-│       │   ├── services/             # (Phase 3+)
-│       │   ├── workers/              # (Phase 3+)
+│       │   ├── models/
+│       │   │   └── job.py            # Pydantic models (ProcessRequest, VadSegment, etc.)
+│       │   ├── services/
+│       │   │   ├── supabase_client.py  # Supabase service-role client
+│       │   │   ├── ffmpeg.py           # FFmpeg subprocess wrapper
+│       │   │   ├── vad.py              # Silero VAD service
+│       │   │   ├── transcription.py    # faster-whisper service
+│       │   │   └── cut_planner.py      # Cut plan algorithm
+│       │   ├── workers/
+│       │   │   ├── process_video.py    # arq task (pipeline orchestrator)
+│       │   │   └── worker_settings.py  # arq WorkerSettings
 │       │   └── main.py               # FastAPI app entry point
 │       ├── tests/
-│       │   └── test_health.py
+│       │   ├── conftest.py            # ML module stubs for testing
+│       │   ├── test_health.py
+│       │   ├── test_models.py
+│       │   ├── test_cut_planner.py
+│       │   ├── test_ffmpeg.py
+│       │   ├── test_routes.py
+│       │   └── test_worker.py
 │       ├── Dockerfile
 │       ├── pyproject.toml
 │       └── requirements.txt

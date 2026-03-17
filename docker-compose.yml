@@ -23,5 +23,20 @@ services:
     volumes:
       - ./apps/processor/src:/app/src  # Hot reload in dev
 
+  # arq worker for video processing jobs
+  worker:
+    build:
+      context: ./apps/processor
+      dockerfile: Dockerfile
+    command: ["python", "-m", "arq", "src.workers.worker_settings.WorkerSettings"]
+    env_file:
+      - ./apps/processor/.env
+    environment:
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      - redis
+    volumes:
+      - ./apps/processor/src:/app/src
+
 volumes:
   redis-data:

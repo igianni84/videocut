@@ -16,7 +16,10 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { formatDuration, formatFileSize } from "@/lib/videos/validation"
+import { ProcessButton } from "@/components/jobs/ProcessButton"
+import { JobProgress } from "@/components/jobs/JobProgress"
 import type { Video } from "@/lib/videos/types"
+import type { Job } from "@/lib/jobs/types"
 
 const STATUS_VARIANT: Record<
   string,
@@ -30,11 +33,24 @@ const STATUS_VARIANT: Record<
 
 type VideoCardProps = {
   video: Video
+  latestJob?: Job | null
   onPlay: (video: Video) => void
   onDelete: (video: Video) => void
+  onProcess: (videoId: string) => void
+  onJobComplete?: () => void
 }
 
-export function VideoCard({ video, onPlay, onDelete }: VideoCardProps) {
+export function VideoCard({
+  video,
+  latestJob,
+  onPlay,
+  onDelete,
+  onProcess,
+  onJobComplete,
+}: VideoCardProps) {
+  const isProcessing = latestJob?.status === "queued" || latestJob?.status === "processing"
+  const canProcess = video.status === "uploaded" || (video.status === "completed" && !isProcessing)
+
   return (
     <Card>
       <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-2">
@@ -76,11 +92,27 @@ export function VideoCard({ video, onPlay, onDelete }: VideoCardProps) {
             </>
           )}
         </div>
-        <div className="mt-2">
-          <Badge variant={STATUS_VARIANT[video.status] ?? "secondary"}>
-            {video.status}
-          </Badge>
+
+        <div className="mt-2 flex items-center gap-2">
+          {!latestJob && (
+            <Badge variant={STATUS_VARIANT[video.status] ?? "secondary"}>
+              {video.status}
+            </Badge>
+          )}
+          {canProcess && (
+            <ProcessButton
+              videoId={video.id}
+              disabled={isProcessing}
+              onProcessStarted={() => onProcess(video.id)}
+            />
+          )}
         </div>
+
+        {latestJob && (
+          <div className="mt-2">
+            <JobProgress jobId={latestJob.id} onComplete={onJobComplete} />
+          </div>
+        )}
       </CardContent>
     </Card>
   )

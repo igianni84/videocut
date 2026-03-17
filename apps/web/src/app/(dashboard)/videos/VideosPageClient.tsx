@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useState } from "react"
+import { useCallback, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 
 import { useUpload } from "@/hooks/use-upload"
@@ -9,14 +9,17 @@ import { VideoList } from "@/components/upload/VideoList"
 import { VideoPlayer } from "@/components/upload/VideoPlayer"
 import { DeleteVideoDialog } from "@/components/upload/DeleteVideoDialog"
 import type { Tier, Video } from "@/lib/videos/types"
+import type { Job } from "@/lib/jobs/types"
 
 type VideosPageClientProps = {
   initialVideos: Video[]
+  initialJobs: Job[]
   tier: Tier
 }
 
 export function VideosPageClient({
   initialVideos,
+  initialJobs,
   tier,
 }: VideosPageClientProps) {
   const router = useRouter()
@@ -25,11 +28,22 @@ export function VideosPageClient({
   const [deletingVideo, setDeletingVideo] = useState<Video | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
 
+  // Build a map of videoId -> latest job
+  const jobsByVideo = useMemo(() => {
+    const map: Record<string, Job> = {}
+    for (const job of initialJobs) {
+      // initialJobs is sorted by created_at desc, so first occurrence is latest
+      if (!map[job.video_id]) {
+        map[job.video_id] = job
+      }
+    }
+    return map
+  }, [initialJobs])
+
   const handleUpload = useCallback(
     async (file: File, fileTier: Tier) => {
       const result = await upload(file, fileTier)
       if (result) {
-        // Refresh server data after successful upload
         router.refresh()
       }
       return result
@@ -54,6 +68,14 @@ export function VideosPageClient({
       setIsDeleting(false)
     }
   }, [deletingVideo, router])
+
+  const handleProcess = useCallback(() => {
+    router.refresh()
+  }, [router])
+
+  const handleJobComplete = useCallback(() => {
+    router.refresh()
+  }, [router])
 
   return (
     <div className="flex flex-col gap-6">
@@ -81,8 +103,11 @@ export function VideosPageClient({
 
       <VideoList
         videos={initialVideos}
+        jobsByVideo={jobsByVideo}
         onPlay={setPlayingVideo}
         onDelete={setDeletingVideo}
+        onProcess={handleProcess}
+        onJobComplete={handleJobComplete}
       />
 
       <DeleteVideoDialog
