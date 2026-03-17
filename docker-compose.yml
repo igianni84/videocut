@@ -1,5 +1,3 @@
-version: "3.8"
-
 services:
   # Redis per job queue (dev locale — in produzione usiamo Upstash)
   redis:

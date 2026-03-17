@@ -8,22 +8,27 @@ Ogni fase termina con: test, documentazione aggiornata, verifica funzionale.
 ## Fase 0 — Project Setup & Infrastructure
 > **Obiettivo:** Monorepo funzionante con entrambi i servizi che si avviano in locale.
 
-- [ ] Inizializzare repo Git
-- [ ] Creare struttura monorepo (`apps/web/`, `apps/processor/`)
-- [ ] Scaffoldare Next.js 16 app con TypeScript, Tailwind CSS 4.2, shadcn/ui
-- [ ] Scaffoldare Python service con FastAPI, arq, struttura cartelle
-- [ ] Creare `docker-compose.yml` per dev locale (Redis, Python service)
-- [ ] Creare `Dockerfile` per il Python processing service
-- [ ] Configurare `.env.example` e `.env.local`
-- [ ] Configurare ESLint, Prettier (frontend), Ruff (Python)
-- [ ] Configurare Vitest (frontend), pytest (Python)
-- [ ] Setup Supabase project (da dashboard) e collegare SDK
-- [ ] Creare schema DB iniziale (migrazione Supabase)
-- [ ] Installare Claude Code skills (Tier 1 + Tier 2)
-- [ ] Creare custom skill `/phase`
-- [ ] **Test:** `npm run dev` avvia il frontend, `docker-compose up` avvia processor + Redis
-- [ ] **Test:** Connessione a Supabase funziona (health check)
-- [ ] **Docs:** Aggiornare docs se necessario
+- [x] Inizializzare repo Git
+- [x] Creare struttura monorepo (`apps/web/`, `apps/processor/`)
+- [x] Scaffoldare Next.js 16 app con TypeScript, Tailwind CSS 4.2, shadcn/ui
+- [x] Scaffoldare Python service con FastAPI, arq, struttura cartelle
+- [x] Creare `docker-compose.yml` per dev locale (Redis, Python service)
+- [x] Creare `Dockerfile` per il Python processing service
+- [x] Configurare `.env.example` e `.env.local`
+- [x] Configurare ESLint, Prettier (frontend), Ruff (Python)
+- [x] Configurare Vitest (frontend), pytest (Python)
+- [x] Setup Supabase project (da dashboard) e collegare SDK
+- [x] Creare schema DB iniziale (migrazione Supabase)
+- [x] Installare Claude Code skills (Tier 1 + Tier 2)
+- [x] Creare custom skill `/phase`
+- [x] **Test:** `npm run dev` avvia il frontend, `docker-compose up` avvia processor + Redis
+- [x] **Test:** Connessione a Supabase funziona (health check)
+- [x] **Docs:** Aggiornare docs se necessario
+
+### Note post-completamento
+- `supabase link` + `supabase db push` + `supabase gen types` da eseguire manualmente (richiede TTY login)
+- Storage buckets `originals` e `processed` da creare via Supabase Dashboard
+- Next.js 16 depreca `middleware.ts` in favore di `proxy` — adattare in Fase 1
 
 ## Fase 1 — Authentication & User Management
 > **Obiettivo:** Login completo con magic link, Google e Apple. Utenti persistiti in Supabase.
