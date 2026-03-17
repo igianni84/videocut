@@ -7,18 +7,22 @@ import type { Job } from "@/lib/jobs/types"
 type VideoListProps = {
   videos: Video[]
   jobsByVideo: Record<string, Job>
+  tier?: string
   onPlay: (video: Video) => void
   onDelete: (video: Video) => void
   onProcess: (videoId: string) => void
+  onPreview?: (video: Video, job: Job) => void
   onJobComplete?: () => void
 }
 
 export function VideoList({
   videos,
   jobsByVideo,
+  tier,
   onPlay,
   onDelete,
   onProcess,
+  onPreview,
   onJobComplete,
 }: VideoListProps) {
   if (videos.length === 0) {
@@ -36,9 +40,11 @@ export function VideoList({
           key={video.id}
           video={video}
           latestJob={jobsByVideo[video.id] ?? null}
+          tier={tier}
           onPlay={onPlay}
           onDelete={onDelete}
           onProcess={onProcess}
+          onPreview={onPreview}
           onJobComplete={onJobComplete}
         />
       ))}

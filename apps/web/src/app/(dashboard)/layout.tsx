@@ -34,6 +34,12 @@ export default async function DashboardLayout({
                 Videos
               </a>
               <a
+                href="/history"
+                className="text-muted-foreground hover:text-foreground"
+              >
+                History
+              </a>
+              <a
                 href="/profile"
                 className="text-muted-foreground hover:text-foreground"
               >

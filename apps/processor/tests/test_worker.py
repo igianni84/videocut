@@ -31,6 +31,7 @@ _PIPELINE_PATCHES = [
     "src.workers.process_video.remap_for_speed",
     "src.workers.process_video.detect_face_positions",
     "src.workers.process_video.crop_and_burn_subtitles",
+    "src.workers.process_video.scale_to_resolution",
 ]
 
 
@@ -83,6 +84,7 @@ def _setup_basic_mocks(
     tmp_path: Path,
     cuts=None,
     info_side_effect=None,
+    mock_scale_resolution=None,
 ):
     """Configure all mocks for a basic pipeline run."""
     mock_settings.temp_dir = str(tmp_path)
@@ -109,10 +111,14 @@ def _setup_basic_mocks(
     mock_smart_speed.return_value = None
     mock_crop_burn.return_value = None
 
+    if mock_scale_resolution is not None:
+        mock_scale_resolution.return_value = None
+
     if info_side_effect:
         mock_get_info.side_effect = info_side_effect
     else:
-        mock_get_info.side_effect = [_video_info(10.0), _output_info(4.1)]
+        # Called 3 times: (1) initial info, (2) scale check after crop/burn, (3) output info
+        mock_get_info.side_effect = [_video_info(10.0), _output_info(4.1), _output_info(4.1)]
 
     mock_supabase.update_job_status = AsyncMock()
     mock_supabase.download_file = AsyncMock()
@@ -125,6 +131,7 @@ class TestProcessVideoTaskSuccess:
     """Successful pipeline run: all services called in correct order."""
 
     @pytest.mark.asyncio
+    @patch("src.workers.process_video.scale_to_resolution")
     @patch("src.workers.process_video.crop_and_burn_subtitles")
     @patch("src.workers.process_video.detect_face_positions")
     @patch("src.workers.process_video.remap_for_speed")
@@ -159,6 +166,7 @@ class TestProcessVideoTaskSuccess:
         mock_remap_speed,
         mock_detect_faces,
         mock_crop_burn,
+        mock_scale_resolution,
         tmp_path: Path,
     ):
         _setup_basic_mocks(
@@ -166,7 +174,7 @@ class TestProcessVideoTaskSuccess:
             mock_cut_concat, mock_burn_subs, mock_plan_cuts, mock_get_transcription,
             mock_get_vad, mock_enrich_fillers, mock_uniform_speed, mock_smart_speed,
             mock_compute_smart, mock_remap_speed, mock_detect_faces, mock_crop_burn,
-            tmp_path,
+            tmp_path, mock_scale_resolution=mock_scale_resolution,
         )
 
         result = await process_video_task(
@@ -193,6 +201,7 @@ class TestProcessVideoTaskSuccess:
         mock_supabase.complete_job.assert_called_once()
 
     @pytest.mark.asyncio
+    @patch("src.workers.process_video.scale_to_resolution")
     @patch("src.workers.process_video.crop_and_burn_subtitles")
     @patch("src.workers.process_video.detect_face_positions")
     @patch("src.workers.process_video.remap_for_speed")
@@ -227,6 +236,7 @@ class TestProcessVideoTaskSuccess:
         mock_remap_speed,
         mock_detect_faces,
         mock_crop_burn,
+        mock_scale_resolution,
         tmp_path: Path,
     ):
         _setup_basic_mocks(
@@ -234,7 +244,7 @@ class TestProcessVideoTaskSuccess:
             mock_cut_concat, mock_burn_subs, mock_plan_cuts, mock_get_transcription,
             mock_get_vad, mock_enrich_fillers, mock_uniform_speed, mock_smart_speed,
             mock_compute_smart, mock_remap_speed, mock_detect_faces, mock_crop_burn,
-            tmp_path,
+            tmp_path, mock_scale_resolution=mock_scale_resolution,
         )
 
         await process_video_task(
@@ -253,6 +263,7 @@ class TestNoCutsScenario:
     """No silences detected -> subtitles still applied if enabled."""
 
     @pytest.mark.asyncio
+    @patch("src.workers.process_video.scale_to_resolution")
     @patch("src.workers.process_video.crop_and_burn_subtitles")
     @patch("src.workers.process_video.detect_face_positions")
     @patch("src.workers.process_video.remap_for_speed")
@@ -287,6 +298,7 @@ class TestNoCutsScenario:
         mock_remap_speed,
         mock_detect_faces,
         mock_crop_burn,
+        mock_scale_resolution,
         tmp_path: Path,
     ):
         _setup_basic_mocks(
@@ -294,7 +306,9 @@ class TestNoCutsScenario:
             mock_cut_concat, mock_burn_subs, mock_plan_cuts, mock_get_transcription,
             mock_get_vad, mock_enrich_fillers, mock_uniform_speed, mock_smart_speed,
             mock_compute_smart, mock_remap_speed, mock_detect_faces, mock_crop_burn,
-            tmp_path, cuts=[], info_side_effect=[_video_info(10.0), _output_info(10.0)],
+            tmp_path, cuts=[],
+            info_side_effect=[_video_info(10.0), _output_info(10.0), _output_info(10.0)],
+            mock_scale_resolution=mock_scale_resolution,
         )
 
         result = await process_video_task(
@@ -310,6 +324,7 @@ class TestNoCutsScenario:
         mock_supabase.upload_file.assert_called_once()
 
     @pytest.mark.asyncio
+    @patch("src.workers.process_video.scale_to_resolution")
     @patch("src.workers.process_video.crop_and_burn_subtitles")
     @patch("src.workers.process_video.detect_face_positions")
     @patch("src.workers.process_video.remap_for_speed")
@@ -344,6 +359,7 @@ class TestNoCutsScenario:
         mock_remap_speed,
         mock_detect_faces,
         mock_crop_burn,
+        mock_scale_resolution,
         tmp_path: Path,
     ):
         _setup_basic_mocks(
@@ -351,7 +367,7 @@ class TestNoCutsScenario:
             mock_cut_concat, mock_burn_subs, mock_plan_cuts, mock_get_transcription,
             mock_get_vad, mock_enrich_fillers, mock_uniform_speed, mock_smart_speed,
             mock_compute_smart, mock_remap_speed, mock_detect_faces, mock_crop_burn,
-            tmp_path, cuts=[],
+            tmp_path, cuts=[], mock_scale_resolution=mock_scale_resolution,
         )
         mock_get_info.side_effect = None
         mock_get_info.return_value = _video_info(10.0)
@@ -569,6 +585,7 @@ class TestSubtitleDisabledWithCuts:
     """Cuts applied but subtitles disabled."""
 
     @pytest.mark.asyncio
+    @patch("src.workers.process_video.scale_to_resolution")
     @patch("src.workers.process_video.crop_and_burn_subtitles")
     @patch("src.workers.process_video.detect_face_positions")
     @patch("src.workers.process_video.remap_for_speed")
@@ -603,6 +620,7 @@ class TestSubtitleDisabledWithCuts:
         mock_remap_speed,
         mock_detect_faces,
         mock_crop_burn,
+        mock_scale_resolution,
         tmp_path: Path,
     ):
         _setup_basic_mocks(
@@ -610,7 +628,7 @@ class TestSubtitleDisabledWithCuts:
             mock_cut_concat, mock_burn_subs, mock_plan_cuts, mock_get_transcription,
             mock_get_vad, mock_enrich_fillers, mock_uniform_speed, mock_smart_speed,
             mock_compute_smart, mock_remap_speed, mock_detect_faces, mock_crop_burn,
-            tmp_path,
+            tmp_path, mock_scale_resolution=mock_scale_resolution,
         )
 
         result = await process_video_task(
@@ -630,6 +648,7 @@ class TestFillerRemovalPipeline:
     """Filler enrichment is called when remove_fillers is enabled."""
 
     @pytest.mark.asyncio
+    @patch("src.workers.process_video.scale_to_resolution")
     @patch("src.workers.process_video.crop_and_burn_subtitles")
     @patch("src.workers.process_video.detect_face_positions")
     @patch("src.workers.process_video.remap_for_speed")
@@ -664,6 +683,7 @@ class TestFillerRemovalPipeline:
         mock_remap_speed,
         mock_detect_faces,
         mock_crop_burn,
+        mock_scale_resolution,
         tmp_path: Path,
     ):
         _setup_basic_mocks(
@@ -671,7 +691,7 @@ class TestFillerRemovalPipeline:
             mock_cut_concat, mock_burn_subs, mock_plan_cuts, mock_get_transcription,
             mock_get_vad, mock_enrich_fillers, mock_uniform_speed, mock_smart_speed,
             mock_compute_smart, mock_remap_speed, mock_detect_faces, mock_crop_burn,
-            tmp_path,
+            tmp_path, mock_scale_resolution=mock_scale_resolution,
         )
 
         await process_video_task(
@@ -684,6 +704,7 @@ class TestFillerRemovalPipeline:
         mock_enrich_fillers.assert_called_once()
 
     @pytest.mark.asyncio
+    @patch("src.workers.process_video.scale_to_resolution")
     @patch("src.workers.process_video.crop_and_burn_subtitles")
     @patch("src.workers.process_video.detect_face_positions")
     @patch("src.workers.process_video.remap_for_speed")
@@ -718,6 +739,7 @@ class TestFillerRemovalPipeline:
         mock_remap_speed,
         mock_detect_faces,
         mock_crop_burn,
+        mock_scale_resolution,
         tmp_path: Path,
     ):
         _setup_basic_mocks(
@@ -725,7 +747,7 @@ class TestFillerRemovalPipeline:
             mock_cut_concat, mock_burn_subs, mock_plan_cuts, mock_get_transcription,
             mock_get_vad, mock_enrich_fillers, mock_uniform_speed, mock_smart_speed,
             mock_compute_smart, mock_remap_speed, mock_detect_faces, mock_crop_burn,
-            tmp_path,
+            tmp_path, mock_scale_resolution=mock_scale_resolution,
         )
 
         await process_video_task(
@@ -742,6 +764,7 @@ class TestSpeedControlPipeline:
     """Speed control steps are called when speed_mode is set."""
 
     @pytest.mark.asyncio
+    @patch("src.workers.process_video.scale_to_resolution")
     @patch("src.workers.process_video.crop_and_burn_subtitles")
     @patch("src.workers.process_video.detect_face_positions")
     @patch("src.workers.process_video.remap_for_speed")
@@ -776,6 +799,7 @@ class TestSpeedControlPipeline:
         mock_remap_speed,
         mock_detect_faces,
         mock_crop_burn,
+        mock_scale_resolution,
         tmp_path: Path,
     ):
         _setup_basic_mocks(
@@ -783,7 +807,7 @@ class TestSpeedControlPipeline:
             mock_cut_concat, mock_burn_subs, mock_plan_cuts, mock_get_transcription,
             mock_get_vad, mock_enrich_fillers, mock_uniform_speed, mock_smart_speed,
             mock_compute_smart, mock_remap_speed, mock_detect_faces, mock_crop_burn,
-            tmp_path,
+            tmp_path, mock_scale_resolution=mock_scale_resolution,
         )
 
         await process_video_task(
@@ -795,3 +819,139 @@ class TestSpeedControlPipeline:
 
         mock_uniform_speed.assert_called_once()
         mock_smart_speed.assert_not_called()
+
+
+class TestResolutionScaling:
+    """Resolution scaling step is called when output_resolution differs from current height."""
+
+    @pytest.mark.asyncio
+    @patch("src.workers.process_video.scale_to_resolution")
+    @patch("src.workers.process_video.crop_and_burn_subtitles")
+    @patch("src.workers.process_video.detect_face_positions")
+    @patch("src.workers.process_video.remap_for_speed")
+    @patch("src.workers.process_video.compute_smart_speed_segments")
+    @patch("src.workers.process_video.apply_smart_speed")
+    @patch("src.workers.process_video.apply_uniform_speed")
+    @patch("src.workers.process_video.enrich_filler_tags")
+    @patch("src.workers.process_video.settings")
+    @patch("src.workers.process_video.supabase_client")
+    @patch("src.workers.process_video.get_video_info")
+    @patch("src.workers.process_video.extract_audio")
+    @patch("src.workers.process_video.cut_and_concat")
+    @patch("src.workers.process_video.burn_subtitles")
+    @patch("src.workers.process_video.plan_cuts")
+    @patch("src.workers.process_video._get_transcription")
+    @patch("src.workers.process_video._get_vad")
+    async def test_scaling_called_when_resolution_differs(
+        self,
+        mock_get_vad,
+        mock_get_transcription,
+        mock_plan_cuts,
+        mock_burn_subs,
+        mock_cut_concat,
+        mock_extract_audio,
+        mock_get_info,
+        mock_supabase,
+        mock_settings,
+        mock_enrich_fillers,
+        mock_uniform_speed,
+        mock_smart_speed,
+        mock_compute_smart,
+        mock_remap_speed,
+        mock_detect_faces,
+        mock_crop_burn,
+        mock_scale_resolution,
+        tmp_path: Path,
+    ):
+        # Video is 1080p, request 720p -> scaling should trigger
+        # get_video_info is called: (1) initial info, (2) after crop/burn for scale check, (3) output info
+        _setup_basic_mocks(
+            mock_settings, mock_supabase, mock_get_info, mock_extract_audio,
+            mock_cut_concat, mock_burn_subs, mock_plan_cuts, mock_get_transcription,
+            mock_get_vad, mock_enrich_fillers, mock_uniform_speed, mock_smart_speed,
+            mock_compute_smart, mock_remap_speed, mock_detect_faces, mock_crop_burn,
+            tmp_path,
+            info_side_effect=[
+                {"duration": 10.0, "width": 1920, "height": 1080},  # initial
+                {"duration": 4.1, "width": 1920, "height": 1080},   # after crop/burn (scale check)
+                {"duration": 4.1, "width": 1280, "height": 720},    # output info after scaling
+            ],
+            mock_scale_resolution=mock_scale_resolution,
+        )
+
+        result = await process_video_task(
+            ctx={},
+            job_id="job-scale-720",
+            video_storage_path="user/video.mp4",
+            options_dict={"output_resolution": "720p"},
+        )
+
+        assert result["status"] == "completed"
+        mock_scale_resolution.assert_called_once()
+        call_args = mock_scale_resolution.call_args
+        assert call_args[0][2] == "720p"  # resolution argument
+
+    @pytest.mark.asyncio
+    @patch("src.workers.process_video.scale_to_resolution")
+    @patch("src.workers.process_video.crop_and_burn_subtitles")
+    @patch("src.workers.process_video.detect_face_positions")
+    @patch("src.workers.process_video.remap_for_speed")
+    @patch("src.workers.process_video.compute_smart_speed_segments")
+    @patch("src.workers.process_video.apply_smart_speed")
+    @patch("src.workers.process_video.apply_uniform_speed")
+    @patch("src.workers.process_video.enrich_filler_tags")
+    @patch("src.workers.process_video.settings")
+    @patch("src.workers.process_video.supabase_client")
+    @patch("src.workers.process_video.get_video_info")
+    @patch("src.workers.process_video.extract_audio")
+    @patch("src.workers.process_video.cut_and_concat")
+    @patch("src.workers.process_video.burn_subtitles")
+    @patch("src.workers.process_video.plan_cuts")
+    @patch("src.workers.process_video._get_transcription")
+    @patch("src.workers.process_video._get_vad")
+    async def test_scaling_skipped_when_resolution_matches(
+        self,
+        mock_get_vad,
+        mock_get_transcription,
+        mock_plan_cuts,
+        mock_burn_subs,
+        mock_cut_concat,
+        mock_extract_audio,
+        mock_get_info,
+        mock_supabase,
+        mock_settings,
+        mock_enrich_fillers,
+        mock_uniform_speed,
+        mock_smart_speed,
+        mock_compute_smart,
+        mock_remap_speed,
+        mock_detect_faces,
+        mock_crop_burn,
+        mock_scale_resolution,
+        tmp_path: Path,
+    ):
+        # Video is 1080p, request 1080p (default) -> scaling should be skipped
+        # get_video_info called: (1) initial info, (2) after crop/burn (scale check), (3) output info
+        _setup_basic_mocks(
+            mock_settings, mock_supabase, mock_get_info, mock_extract_audio,
+            mock_cut_concat, mock_burn_subs, mock_plan_cuts, mock_get_transcription,
+            mock_get_vad, mock_enrich_fillers, mock_uniform_speed, mock_smart_speed,
+            mock_compute_smart, mock_remap_speed, mock_detect_faces, mock_crop_burn,
+            tmp_path,
+            info_side_effect=[
+                {"duration": 10.0, "width": 1920, "height": 1080},  # initial
+                {"duration": 4.1, "width": 1920, "height": 1080},   # after crop/burn (scale check)
+                {"duration": 4.1, "width": 1920, "height": 1080},   # output info
+            ],
+            mock_scale_resolution=mock_scale_resolution,
+        )
+
+        result = await process_video_task(
+            ctx={},
+            job_id="job-scale-same",
+            video_storage_path="user/video.mp4",
+            options_dict={"output_resolution": "1080p"},
+        )
+
+        assert result["status"] == "completed"
+        mock_scale_resolution.assert_not_called()

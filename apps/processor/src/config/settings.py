@@ -12,6 +12,7 @@ class Settings(BaseSettings):
     processing_timeout_seconds: int = 300
     max_retries: int = 3
     temp_dir: str = "/tmp/videocut"
+    notification_url: str = ""
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
 

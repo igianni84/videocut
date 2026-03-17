@@ -73,12 +73,14 @@ export async function updateProfile(
 
   const fullName = formData.get("full_name") as string
   const preferredLanguage = formData.get("preferred_language") as string
+  const emailNotifications = formData.get("email_notifications") === "on"
 
   const { error } = await supabase
     .from("profiles")
     .update({
       full_name: fullName || null,
       preferred_language: preferredLanguage || "it",
+      email_notifications: emailNotifications,
       updated_at: new Date().toISOString(),
     })
     .eq("id", user.id)

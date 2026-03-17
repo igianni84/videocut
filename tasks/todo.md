@@ -170,19 +170,29 @@ _Deliverables e verifiche dettagliate per ogni fase → `tasks/plans/master-plan
 
 ## Fase 6 — Preview & Download
 
-- [ ] Player video in-browser per anteprima risultato
-- [ ] Confronto before/after (split view o toggle)
-- [ ] Download video processato
-- [ ] Scelta risoluzione download (720p, 1080p, 4K per pro)
-- [ ] Progress bar durante il processing con percentuale stimata
-- [ ] Notifica email quando il video è pronto (opzionale, opt-in)
-- [ ] Pagina "I miei video processati" con storico
-- [ ] Cleanup automatico: video processati cancellati dopo 30 giorni
-- [ ] **Test:** Preview funziona nel browser
-- [ ] **Test:** Download produce file valido
-- [ ] **Test:** Risoluzione rispetta i limiti del tier
-- [ ] **Test:** Cleanup cancella video vecchi
-- [ ] **Docs:** Aggiornare docs/
+- [x] Player video in-browser per anteprima risultato
+- [x] Confronto before/after (split view o toggle)
+- [x] Download video processato
+- [x] Scelta risoluzione download (720p, 1080p, 4K per pro)
+- [x] Progress bar durante il processing con percentuale stimata
+- [x] Notifica email quando il video è pronto (opzionale, opt-in)
+- [x] Pagina "I miei video processati" con storico
+- [x] Cleanup automatico: video processati cancellati dopo 30 giorni
+- [x] **Test:** Preview funziona nel browser
+- [x] **Test:** Download produce file valido
+- [x] **Test:** Risoluzione rispetta i limiti del tier
+- [x] **Test:** Cleanup cancella video vecchi
+- [x] **Docs:** Aggiornare docs/
+
+### Note post-completamento
+- VideoCompare component with Original/Processed tabs and signed URL fetching
+- DownloadButton triggers browser download via temporary anchor element
+- ResolutionSelector with 4K gated behind Pro tier
+- History page at /history with expiration countdown (30 days from completed_at)
+- Email notifications via Resend SDK, opt-in toggle in ProfileForm
+- Vercel Cron at 3:00 UTC daily for cleanup of expired processed videos
+- Python worker sends notification via httpx after job completion
+- DB migration: email_notifications column + jobs(completed_at) index
 
 ## Fase 7 — Stripe Integration & Monetization
 

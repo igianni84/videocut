@@ -263,3 +263,38 @@ async def crop_and_burn_subtitles(
         str(output_path),
     ])
     logger.info("Crop+burn -> %s (%dx%d)", output_path, crop_w, crop_h)
+
+
+_RESOLUTION_MAP = {
+    "720p": 720,
+    "1080p": 1080,
+    "4k": 2160,
+}
+
+
+async def scale_to_resolution(
+    input_path: Path,
+    output_path: Path,
+    resolution: str,
+) -> None:
+    """Scale video to target resolution height, preserving aspect ratio.
+
+    Uses scale=-2:height so width stays divisible by 2.
+    """
+    height = _RESOLUTION_MAP.get(resolution)
+    if height is None:
+        raise ValueError(f"Unknown resolution: {resolution}")
+
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    await _run([
+        "ffmpeg", "-y",
+        "-i", str(input_path),
+        "-vf", f"scale=-2:{height}",
+        "-c:v", "libx264",
+        "-preset", "medium",
+        "-crf", "23",
+        "-c:a", "copy",
+        str(output_path),
+    ])
+    logger.info("Scaled to %s (%dp) -> %s", resolution, height, output_path)

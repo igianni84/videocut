@@ -87,6 +87,31 @@ Lista video dell'utente corrente.
 #### `DELETE /api/videos/{id}`
 Elimina un video e tutti i job associati.
 
+#### `GET /api/videos/{id}/download`
+Genera un signed URL per scaricare il video processato.
+
+**Response 200:**
+```json
+{
+  "downloadUrl": "https://xxx.supabase.co/storage/v1/...",
+  "filename": "my-video_processed.mp4"
+}
+```
+
+**Errori:**
+- 401: Non autenticato
+- 404: Nessun video processato disponibile
+
+#### `GET /api/videos/{id}/signed-url?bucket=originals|processed`
+Genera un signed URL per riprodurre il video originale o processato nel browser.
+
+**Response 200:**
+```json
+{
+  "signedUrl": "https://xxx.supabase.co/storage/v1/..."
+}
+```
+
 ---
 
 ### Jobs
@@ -155,6 +180,45 @@ Stato di un job specifico.
 
 #### `GET /api/jobs`
 Lista job dell'utente corrente.
+
+---
+
+### Notifications
+
+#### `POST /api/notifications/job-complete`
+Invia email di notifica quando un video è pronto. Autenticazione via `X-API-Key` header.
+
+**Request:**
+```json
+{
+  "jobId": "uuid",
+  "userEmail": "user@example.com",
+  "videoName": "my-video.mp4"
+}
+```
+
+**Response 200:**
+```json
+{
+  "success": true
+}
+```
+
+---
+
+### Cron
+
+#### `GET /api/cron/cleanup`
+Vercel Cron job che elimina video processati scaduti (>30 giorni). Eseguito giornalmente alle 3:00 UTC.
+
+Autenticazione: header `Authorization: Bearer <CRON_SECRET>` (impostato da Vercel).
+
+**Response 200:**
+```json
+{
+  "cleaned": 5
+}
+```
 
 ---
 

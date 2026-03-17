@@ -19,6 +19,7 @@ import { SubtitlePreview } from "@/components/subtitles/SubtitlePreview"
 import { SpeedControl } from "@/components/processing/SpeedControl"
 import { FillerRemoval } from "@/components/processing/FillerRemoval"
 import { FormatSelector } from "@/components/processing/FormatSelector"
+import { ResolutionSelector } from "@/components/processing/ResolutionSelector"
 import {
   DEFAULT_SUBTITLE_OPTIONS,
   type SubtitleOptions,
@@ -30,11 +31,13 @@ import {
   type OutputFormat,
   type TargetPlatform,
 } from "@/lib/processing/types"
+import type { OutputResolution } from "@/lib/processing/types"
 import type { ProcessingOptionsPayload } from "@/lib/jobs/types"
 
 type ProcessingOptionsDialogProps = {
   videoId: string
   disabled?: boolean
+  tier?: string
   onProcessStarted?: (jobId: string) => void
 }
 
@@ -59,12 +62,14 @@ function optionsToPayload(
     filler_language: advanced.fillerLanguage,
     smart_crop: advanced.smartCrop,
     target_platform: advanced.targetPlatform,
+    output_resolution: advanced.outputResolution,
   }
 }
 
 export function ProcessingOptionsDialog({
   videoId,
   disabled,
+  tier = "free",
   onProcessStarted,
 }: ProcessingOptionsDialogProps) {
   const [open, setOpen] = useState(false)
@@ -177,6 +182,18 @@ export function ProcessingOptionsDialog({
               onOutputFormatChange={(format) => updateAdvanced({ outputFormat: format })}
               onSmartCropChange={(enabled) => updateAdvanced({ smartCrop: enabled })}
               onTargetPlatformChange={(platform) => updateAdvanced({ targetPlatform: platform })}
+            />
+          </div>
+
+          <Separator />
+
+          {/* Resolution */}
+          <div className="space-y-3">
+            <Label className="text-sm font-semibold">Resolution</Label>
+            <ResolutionSelector
+              resolution={advancedOptions.outputResolution}
+              onResolutionChange={(resolution) => updateAdvanced({ outputResolution: resolution })}
+              tier={tier}
             />
           </div>
         </div>

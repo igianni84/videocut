@@ -19,6 +19,7 @@ from src.services.ffmpeg import (
     cut_and_concat,
     extract_audio,
     get_video_info,
+    scale_to_resolution,
 )
 from src.services.safe_zones import get_subtitle_margin_v
 from src.services.smart_crop import (
@@ -238,12 +239,24 @@ async def _run_pipeline(
         current_video = subtitled_path
     await supabase_client.update_job_progress(job_id, 90)
 
+    # 11.5. Resolution scaling (if needed)
+    current_info_for_scale = await get_video_info(current_video)
+    current_height = current_info_for_scale.get("height") or 1080
+    target_heights = {"720p": 720, "1080p": 1080, "4k": 2160}
+    target_h = target_heights.get(options.output_resolution, 1080)
+    if current_height != target_h:
+        logger.info("Job %s: scaling to %s...", job_id, options.output_resolution)
+        scaled_path = work_dir / "scaled.mp4"
+        await scale_to_resolution(current_video, scaled_path, options.output_resolution)
+        current_video = scaled_path
+
     # Determine if we need to upload (any processing happened?)
     needs_upload = (
         cuts
         or options.subtitle_enabled
         or options.speed_mode != "none"
         or options.output_format != "original"
+        or current_height != target_h
     )
 
     if not needs_upload:
@@ -290,7 +303,63 @@ async def _run_pipeline(
         (1 - output_info["duration"] / info["duration"]) * 100 if info["duration"] > 0 else 0,
         elapsed_ms,
     )
+
+    # Send email notification if opted in
+    await _send_notification_if_enabled(job_id, user_id, video_storage_path)
+
     return {"status": "completed"}
+
+
+async def _send_notification_if_enabled(
+    job_id: str, user_id: str, video_storage_path: str
+) -> None:
+    """Send email notification if user has opted in."""
+    if not settings.notification_url:
+        return
+
+    try:
+        sb = supabase_client.get_supabase()
+        profile = (
+            sb.table("profiles")
+            .select("email, email_notifications")
+            .eq("id", user_id)
+            .single()
+            .execute()
+        )
+
+        if not profile.data or not profile.data.get("email_notifications"):
+            return
+
+        # Get video name
+        video = (
+            sb.table("videos")
+            .select("original_filename")
+            .eq("storage_path", video_storage_path)
+            .single()
+            .execute()
+        )
+        video_name = (
+            video.data.get("original_filename", "your video")
+            if video.data
+            else "your video"
+        )
+
+        import httpx
+
+        async with httpx.AsyncClient(timeout=10) as client:
+            await client.post(
+                f"{settings.notification_url}/api/notifications/job-complete",
+                json={
+                    "jobId": job_id,
+                    "userEmail": profile.data["email"],
+                    "videoName": video_name,
+                },
+                headers={"x-api-key": settings.api_key},
+            )
+        logger.info("Job %s: notification sent to %s", job_id, profile.data["email"])
+    except Exception as e:
+        # Don't fail the job if notification fails
+        logger.warning("Job %s: failed to send notification: %s", job_id, e)
 
 
 async def _handle_failure(job_id: str, error_message: str) -> None:

@@ -24,6 +24,7 @@ export type ProcessingOptionsPayload = {
   filler_language?: string
   smart_crop?: boolean
   target_platform?: string
+  output_resolution?: string
 }
 
 export type CreateJobPayload = {

@@ -21,6 +21,13 @@ export const PLATFORM_PRESETS = [
 ] as const
 export type TargetPlatform = (typeof PLATFORM_PRESETS)[number]["value"]
 
+export const RESOLUTION_PRESETS = [
+  { value: "720p", label: "720p" },
+  { value: "1080p", label: "1080p (HD)" },
+  { value: "4k", label: "4K" },
+] as const
+export type OutputResolution = (typeof RESOLUTION_PRESETS)[number]["value"]
+
 export const SAFE_ZONES = {
   tiktok: { top: 150, bottom: 270, right: 100 },
   reels: { top: 210, bottom: 310, right: 100 },
@@ -36,6 +43,7 @@ export type AdvancedOptions = {
   outputFormat: OutputFormat
   smartCrop: boolean
   targetPlatform: TargetPlatform
+  outputResolution: OutputResolution
 }
 
 export const DEFAULT_ADVANCED_OPTIONS: AdvancedOptions = {
@@ -46,4 +54,5 @@ export const DEFAULT_ADVANCED_OPTIONS: AdvancedOptions = {
   outputFormat: "original",
   smartCrop: true,
   targetPlatform: "none",
+  outputResolution: "1080p",
 }

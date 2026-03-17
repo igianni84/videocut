@@ -96,7 +96,7 @@ export function ProfileForm({ profile }: { profile: Profile }) {
               <select
                 id="preferred_language"
                 name="preferred_language"
-                defaultValue={profile.preferred_language}
+                defaultValue={profile.preferred_language ?? "auto"}
                 className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30"
               >
                 {LANGUAGES.map((lang) => (
@@ -109,6 +109,38 @@ export function ProfileForm({ profile }: { profile: Profile }) {
             <Button type="submit" disabled={isPending} className="w-fit">
               {isPending ? "Saving..." : "Save changes"}
             </Button>
+          </form>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Notifications</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <form action={action} className="flex flex-col gap-4">
+            {/* Preserve current profile values as hidden inputs */}
+            <input type="hidden" name="full_name" value={profile.full_name ?? ""} />
+            <input type="hidden" name="preferred_language" value={profile.preferred_language ?? "auto"} />
+            <div className="flex items-center justify-between">
+              <div>
+                <Label htmlFor="email_notifications">Email when video is ready</Label>
+                <p className="text-xs text-muted-foreground">
+                  Get notified when your video finishes processing
+                </p>
+              </div>
+              <label className="relative inline-flex cursor-pointer items-center">
+                <input
+                  type="checkbox"
+                  id="email_notifications"
+                  name="email_notifications"
+                  defaultChecked={profile.email_notifications}
+                  className="peer sr-only"
+                  onChange={(e) => e.target.form?.requestSubmit()}
+                />
+                <div className="h-5 w-9 rounded-full bg-zinc-200 after:absolute after:start-[2px] after:top-[2px] after:h-4 after:w-4 after:rounded-full after:bg-white after:transition-all peer-checked:bg-zinc-900 peer-checked:after:translate-x-full dark:bg-zinc-700 dark:peer-checked:bg-zinc-400" />
+              </label>
+            </div>
           </form>
         </CardContent>
       </Card>

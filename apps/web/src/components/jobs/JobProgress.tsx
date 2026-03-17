@@ -25,7 +25,7 @@ export function JobProgress({ jobId, onComplete }: JobProgressProps) {
   return (
     <div className="flex flex-col gap-2">
       <div className="flex items-center justify-between">
-        <JobStatusBadge status={job.status} progress={job.progress} />
+        <JobStatusBadge status={job.status} progress={job.progress ?? 0} />
         {job.error_message && job.status === "failed" && (
           <span className="text-xs text-destructive">{job.error_message}</span>
         )}

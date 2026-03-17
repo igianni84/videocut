@@ -40,6 +40,22 @@ describe("ProcessingOptionsDialog", () => {
     expect(getByText("Enable Subtitles")).toBeInTheDocument()
   })
 
+  it("shows resolution selector when dialog is opened", () => {
+    const { getByText } = render(
+      <ProcessingOptionsDialog videoId="vid-1" />
+    )
+    fireEvent.click(getByText("Process"))
+    expect(getByText("Output Resolution")).toBeInTheDocument()
+  })
+
+  it("shows Resolution label in dialog", () => {
+    const { getByText } = render(
+      <ProcessingOptionsDialog videoId="vid-1" />
+    )
+    fireEvent.click(getByText("Process"))
+    expect(getByText("Resolution")).toBeInTheDocument()
+  })
+
   it("submits with options and calls onProcessStarted", async () => {
     const onProcessStarted = vi.fn()
     const mockFetch = vi.fn().mockResolvedValue({

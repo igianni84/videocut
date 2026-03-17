@@ -24,6 +24,8 @@ class ProcessingOptions(BaseModel):
     # Smart crop
     smart_crop: bool = True
     target_platform: str = "none"  # none | tiktok | reels | shorts | youtube
+    # Output resolution
+    output_resolution: str = "1080p"  # 720p | 1080p | 4k
 
 
 class SpeedSegment(BaseModel):

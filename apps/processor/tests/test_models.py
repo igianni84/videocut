@@ -33,6 +33,20 @@ class TestProcessingOptions:
         assert opts.silence_threshold_ms == 200
         assert opts.min_breath_pause_ms == 50  # default preserved
 
+    def test_output_resolution_default(self):
+        opts = ProcessingOptions()
+        assert opts.output_resolution == "1080p"
+
+    def test_output_resolution_custom(self):
+        opts = ProcessingOptions(output_resolution="4k")
+        assert opts.output_resolution == "4k"
+
+    def test_output_resolution_preserved(self):
+        opts = ProcessingOptions(silence_threshold_ms=200, output_resolution="720p")
+        assert opts.output_resolution == "720p"
+        assert opts.silence_threshold_ms == 200
+        assert opts.min_breath_pause_ms == 50  # default preserved
+
 
 # ── ProcessRequest ─────────────────────────────────────────────────
 

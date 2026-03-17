@@ -60,8 +60,8 @@
 ### Stato Corrente
 | | |
 |---|---|
-| **Ultima fase completata** | Phase 5 — Advanced Processing Features (2026-03-17) |
-| **Prossima fase** | Phase 6 — Preview & Download |
+| **Ultima fase completata** | Phase 6 — Preview & Download (2026-03-17) |
+| **Prossima fase** | Phase 7 — Stripe Integration & Monetization |
 
 ### Reference Index
 

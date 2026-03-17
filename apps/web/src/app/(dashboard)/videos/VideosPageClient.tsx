@@ -7,6 +7,7 @@ import { useUpload } from "@/hooks/use-upload"
 import { UploadZone } from "@/components/upload/UploadZone"
 import { VideoList } from "@/components/upload/VideoList"
 import { VideoPlayer } from "@/components/upload/VideoPlayer"
+import { VideoCompare } from "@/components/preview/VideoCompare"
 import { DeleteVideoDialog } from "@/components/upload/DeleteVideoDialog"
 import type { Tier, Video } from "@/lib/videos/types"
 import type { Job } from "@/lib/jobs/types"
@@ -27,6 +28,7 @@ export function VideosPageClient({
   const [playingVideo, setPlayingVideo] = useState<Video | null>(null)
   const [deletingVideo, setDeletingVideo] = useState<Video | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
+  const [comparingData, setComparingData] = useState<{ video: Video; job: Job } | null>(null)
 
   // Build a map of videoId -> latest job
   const jobsByVideo = useMemo(() => {
@@ -77,6 +79,10 @@ export function VideosPageClient({
     router.refresh()
   }, [router])
 
+  const handlePreview = useCallback((video: Video, job: Job) => {
+    setComparingData({ video, job })
+  }, [])
+
   return (
     <div className="flex flex-col gap-6">
       <div>
@@ -101,12 +107,22 @@ export function VideosPageClient({
         />
       )}
 
+      {comparingData && (
+        <VideoCompare
+          video={comparingData.video}
+          job={comparingData.job}
+          onClose={() => setComparingData(null)}
+        />
+      )}
+
       <VideoList
         videos={initialVideos}
         jobsByVideo={jobsByVideo}
+        tier={tier}
         onPlay={setPlayingVideo}
         onDelete={setDeletingVideo}
         onProcess={handleProcess}
+        onPreview={handlePreview}
         onJobComplete={handleJobComplete}
       />
 

@@ -1,6 +1,6 @@
 # VideoCut — Schema Database (Supabase / PostgreSQL)
 
-> **SQL source of truth:** `supabase/migrations/20260317000000_initial_schema.sql`
+> **SQL source of truth:** `supabase/migrations/20260317000000_initial_schema.sql` + `supabase/migrations/20260318000000_phase6_preview_download.sql`
 > In caso di conflitto tra questo documento e il file migration, il file migration vince.
 
 ## Tabelle
@@ -21,6 +21,7 @@ Collegata a `auth.users` (gestita da Supabase Auth). Creata automaticamente al s
 | subscription_status | TEXT | `none`, `active`, `past_due`, `canceled`, `trialing` |
 | subscription_period_end | TIMESTAMPTZ | |
 | preferred_language | TEXT | Default: `'auto'` |
+| email_notifications | BOOLEAN | Default: `false`. Opt-in email when video ready |
 | created_at / updated_at | TIMESTAMPTZ | Auto-managed |
 
 **RLS:** Users can SELECT/UPDATE only own profile.
@@ -64,7 +65,7 @@ Collegata a `auth.users` (gestita da Supabase Auth). Creata automaticamente al s
 | processing_duration_ms | INTEGER | |
 | created_at / updated_at | TIMESTAMPTZ | Auto-managed |
 
-**Indici:** user_id, video_id, status
+**Indici:** user_id, video_id, status, completed_at (for cleanup queries)
 **RLS:** Users can SELECT/INSERT own jobs. Service role: full access.
 
 ### subscription_events (audit trail Stripe)

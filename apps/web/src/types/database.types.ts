@@ -12,194 +12,71 @@ export type Database = {
   __InternalSupabase: {
     PostgrestVersion: "14.4"
   }
-  graphql_public: {
-    Tables: {
-      [_ in never]: never
-    }
-    Views: {
-      [_ in never]: never
-    }
-    Functions: {
-      graphql: {
-        Args: {
-          extensions?: Json
-          operationName?: string
-          query?: string
-          variables?: Json
-        }
-        Returns: Json
-      }
-    }
-    Enums: {
-      [_ in never]: never
-    }
-    CompositeTypes: {
-      [_ in never]: never
-    }
-  }
   public: {
     Tables: {
-      profiles: {
-        Row: {
-          id: string
-          email: string
-          full_name: string | null
-          avatar_url: string | null
-          tier: string
-          stripe_customer_id: string | null
-          stripe_subscription_id: string | null
-          subscription_status: string
-          subscription_period_end: string | null
-          preferred_language: string
-          created_at: string
-          updated_at: string
-        }
-        Insert: {
-          id: string
-          email: string
-          full_name?: string | null
-          avatar_url?: string | null
-          tier?: string
-          stripe_customer_id?: string | null
-          stripe_subscription_id?: string | null
-          subscription_status?: string
-          subscription_period_end?: string | null
-          preferred_language?: string
-          created_at?: string
-          updated_at?: string
-        }
-        Update: {
-          id?: string
-          email?: string
-          full_name?: string | null
-          avatar_url?: string | null
-          tier?: string
-          stripe_customer_id?: string | null
-          stripe_subscription_id?: string | null
-          subscription_status?: string
-          subscription_period_end?: string | null
-          preferred_language?: string
-          created_at?: string
-          updated_at?: string
-        }
-        Relationships: []
-      }
-      videos: {
-        Row: {
-          id: string
-          user_id: string
-          original_filename: string
-          storage_path: string
-          mime_type: string
-          file_size_bytes: number
-          duration_seconds: number
-          width: number | null
-          height: number | null
-          status: string
-          created_at: string
-          updated_at: string
-        }
-        Insert: {
-          id?: string
-          user_id: string
-          original_filename: string
-          storage_path: string
-          mime_type: string
-          file_size_bytes: number
-          duration_seconds: number
-          width?: number | null
-          height?: number | null
-          status?: string
-          created_at?: string
-          updated_at?: string
-        }
-        Update: {
-          id?: string
-          user_id?: string
-          original_filename?: string
-          storage_path?: string
-          mime_type?: string
-          file_size_bytes?: number
-          duration_seconds?: number
-          width?: number | null
-          height?: number | null
-          status?: string
-          created_at?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "videos_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       jobs: {
         Row: {
+          completed_at: string | null
+          created_at: string
+          error_message: string | null
           id: string
+          options: Json
+          output_duration_seconds: number | null
+          output_height: number | null
+          output_storage_path: string | null
+          output_width: number | null
+          processing_duration_ms: number | null
+          progress: number | null
+          queued_at: string
+          retry_count: number
+          started_at: string | null
+          status: string
+          transcription: Json | null
+          updated_at: string
           user_id: string
           video_id: string
-          status: string
-          progress: number
-          error_message: string | null
-          retry_count: number
-          options: Json
-          output_storage_path: string | null
-          output_duration_seconds: number | null
-          output_width: number | null
-          output_height: number | null
-          transcription: Json | null
-          queued_at: string
-          started_at: string | null
-          completed_at: string | null
-          processing_duration_ms: number | null
-          created_at: string
-          updated_at: string
         }
         Insert: {
+          completed_at?: string | null
+          created_at?: string
+          error_message?: string | null
           id?: string
+          options?: Json
+          output_duration_seconds?: number | null
+          output_height?: number | null
+          output_storage_path?: string | null
+          output_width?: number | null
+          processing_duration_ms?: number | null
+          progress?: number | null
+          queued_at?: string
+          retry_count?: number
+          started_at?: string | null
+          status?: string
+          transcription?: Json | null
+          updated_at?: string
           user_id: string
           video_id: string
-          status?: string
-          progress?: number
-          error_message?: string | null
-          retry_count?: number
-          options?: Json
-          output_storage_path?: string | null
-          output_duration_seconds?: number | null
-          output_width?: number | null
-          output_height?: number | null
-          transcription?: Json | null
-          queued_at?: string
-          started_at?: string | null
-          completed_at?: string | null
-          processing_duration_ms?: number | null
-          created_at?: string
-          updated_at?: string
         }
         Update: {
+          completed_at?: string | null
+          created_at?: string
+          error_message?: string | null
           id?: string
+          options?: Json
+          output_duration_seconds?: number | null
+          output_height?: number | null
+          output_storage_path?: string | null
+          output_width?: number | null
+          processing_duration_ms?: number | null
+          progress?: number | null
+          queued_at?: string
+          retry_count?: number
+          started_at?: string | null
+          status?: string
+          transcription?: Json | null
+          updated_at?: string
           user_id?: string
           video_id?: string
-          status?: string
-          progress?: number
-          error_message?: string | null
-          retry_count?: number
-          options?: Json
-          output_storage_path?: string | null
-          output_duration_seconds?: number | null
-          output_width?: number | null
-          output_height?: number | null
-          transcription?: Json | null
-          queued_at?: string
-          started_at?: string | null
-          completed_at?: string | null
-          processing_duration_ms?: number | null
-          created_at?: string
-          updated_at?: string
         }
         Relationships: [
           {
@@ -218,34 +95,135 @@ export type Database = {
           },
         ]
       }
-      subscription_events: {
+      profiles: {
         Row: {
+          avatar_url: string | null
+          created_at: string
+          email: string
+          email_notifications: boolean
+          full_name: string | null
           id: string
-          user_id: string | null
-          stripe_event_id: string
-          event_type: string
-          payload: Json
-          processed_at: string
+          preferred_language: string | null
+          stripe_customer_id: string | null
+          stripe_subscription_id: string | null
+          subscription_period_end: string | null
+          subscription_status: string | null
+          tier: string
+          updated_at: string
         }
         Insert: {
-          id?: string
-          user_id?: string | null
-          stripe_event_id: string
-          event_type: string
-          payload: Json
-          processed_at?: string
+          avatar_url?: string | null
+          created_at?: string
+          email: string
+          email_notifications?: boolean
+          full_name?: string | null
+          id: string
+          preferred_language?: string | null
+          stripe_customer_id?: string | null
+          stripe_subscription_id?: string | null
+          subscription_period_end?: string | null
+          subscription_status?: string | null
+          tier?: string
+          updated_at?: string
         }
         Update: {
+          avatar_url?: string | null
+          created_at?: string
+          email?: string
+          email_notifications?: boolean
+          full_name?: string | null
           id?: string
+          preferred_language?: string | null
+          stripe_customer_id?: string | null
+          stripe_subscription_id?: string | null
+          subscription_period_end?: string | null
+          subscription_status?: string | null
+          tier?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      subscription_events: {
+        Row: {
+          event_type: string
+          id: string
+          payload: Json
+          processed_at: string
+          stripe_event_id: string
+          user_id: string | null
+        }
+        Insert: {
+          event_type: string
+          id?: string
+          payload: Json
+          processed_at?: string
+          stripe_event_id: string
           user_id?: string | null
-          stripe_event_id?: string
+        }
+        Update: {
           event_type?: string
+          id?: string
           payload?: Json
           processed_at?: string
+          stripe_event_id?: string
+          user_id?: string | null
         }
         Relationships: [
           {
             foreignKeyName: "subscription_events_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      videos: {
+        Row: {
+          created_at: string
+          duration_seconds: number
+          file_size_bytes: number
+          height: number | null
+          id: string
+          mime_type: string
+          original_filename: string
+          status: string
+          storage_path: string
+          updated_at: string
+          user_id: string
+          width: number | null
+        }
+        Insert: {
+          created_at?: string
+          duration_seconds: number
+          file_size_bytes: number
+          height?: number | null
+          id?: string
+          mime_type: string
+          original_filename: string
+          status?: string
+          storage_path: string
+          updated_at?: string
+          user_id: string
+          width?: number | null
+        }
+        Update: {
+          created_at?: string
+          duration_seconds?: number
+          file_size_bytes?: number
+          height?: number | null
+          id?: string
+          mime_type?: string
+          original_filename?: string
+          status?: string
+          storage_path?: string
+          updated_at?: string
+          user_id?: string
+          width?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "videos_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "profiles"
@@ -387,9 +365,6 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
-  graphql_public: {
-    Enums: {},
-  },
   public: {
     Enums: {},
   },

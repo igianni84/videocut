@@ -9,8 +9,8 @@ SaaS per content creator che automatizza l'editing video: rimozione pause, sotto
 
 | | |
 |---|---|
-| **Ultima fase completata** | Phase 3 — Video Processing Pipeline (2026-03-17) |
-| **Prossima fase** | Phase 4 — Dynamic Subtitles |
+| **Ultima fase completata** | Phase 6 — Preview & Download (2026-03-17) |
+| **Prossima fase** | Phase 7 — Stripe Integration & Monetization |
 
 ---
 

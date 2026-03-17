@@ -93,7 +93,8 @@ VideoCut/
 │   │   │   │   ├── upload/           # VideoCard, VideoList, UploadZone, etc.
 │   │   │   │   ├── jobs/             # ProcessingOptionsDialog, JobStatusBadge, JobProgress
 │   │   │   │   ├── subtitles/        # SubtitleCustomizer, SubtitlePreview
-│   │   │   │   └── processing/       # SpeedControl, FillerRemoval, FormatSelector
+│   │   │   │   ├── processing/       # SpeedControl, FillerRemoval, FormatSelector, ResolutionSelector
+│   │   │   │   └── preview/          # VideoCompare, DownloadButton
 │   │   │   ├── hooks/
 │   │   │   │   └── use-job-status.ts # Realtime job subscription
 │   │   │   ├── lib/
@@ -166,7 +167,8 @@ VideoCut/
 │
 ├── supabase/
 │   ├── migrations/
-│   │   └── 20260317000000_initial_schema.sql
+│   │   ├── 20260317000000_initial_schema.sql
+│   │   └── 20260318000000_phase6_preview_download.sql
 │   └── config.toml
 │
 ├── tasks/

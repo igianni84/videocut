@@ -10,7 +10,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from src.models.job import CutSegment
-from src.services.ffmpeg import _run, burn_subtitles, cut_and_concat, extract_audio, get_video_info
+from src.services.ffmpeg import _run, burn_subtitles, cut_and_concat, extract_audio, get_video_info, scale_to_resolution
 
 
 def _make_mock_process(returncode: int = 0, stdout: bytes = b"", stderr: bytes = b""):
@@ -273,3 +273,71 @@ class TestBurnSubtitles:
         cmd = list(mock_exec.call_args[0])
         ca_idx = cmd.index("-c:a")
         assert cmd[ca_idx + 1] == "copy"
+
+
+# ── scale_to_resolution ──────────────────────────────────────────
+
+
+class TestScaleToResolution:
+    @pytest.mark.asyncio
+    async def test_scale_to_resolution_720p(self, tmp_path: Path):
+        input_path = tmp_path / "video.mp4"
+        output_path = tmp_path / "out.mp4"
+
+        proc = _make_mock_process()
+        with patch("src.services.ffmpeg.asyncio.create_subprocess_exec", return_value=proc) as mock_exec:
+            await scale_to_resolution(input_path, output_path, "720p")
+
+        cmd = list(mock_exec.call_args[0])
+        assert cmd[0] == "ffmpeg"
+        assert "-y" in cmd
+        assert "-i" in cmd
+        assert str(input_path) in cmd
+        vf_idx = cmd.index("-vf")
+        assert cmd[vf_idx + 1] == "scale=-2:720"
+        assert str(output_path) in cmd
+
+    @pytest.mark.asyncio
+    async def test_scale_to_resolution_1080p(self, tmp_path: Path):
+        input_path = tmp_path / "video.mp4"
+        output_path = tmp_path / "out.mp4"
+
+        proc = _make_mock_process()
+        with patch("src.services.ffmpeg.asyncio.create_subprocess_exec", return_value=proc) as mock_exec:
+            await scale_to_resolution(input_path, output_path, "1080p")
+
+        cmd = list(mock_exec.call_args[0])
+        vf_idx = cmd.index("-vf")
+        assert cmd[vf_idx + 1] == "scale=-2:1080"
+
+    @pytest.mark.asyncio
+    async def test_scale_to_resolution_4k(self, tmp_path: Path):
+        input_path = tmp_path / "video.mp4"
+        output_path = tmp_path / "out.mp4"
+
+        proc = _make_mock_process()
+        with patch("src.services.ffmpeg.asyncio.create_subprocess_exec", return_value=proc) as mock_exec:
+            await scale_to_resolution(input_path, output_path, "4k")
+
+        cmd = list(mock_exec.call_args[0])
+        vf_idx = cmd.index("-vf")
+        assert cmd[vf_idx + 1] == "scale=-2:2160"
+
+    @pytest.mark.asyncio
+    async def test_scale_to_resolution_unknown(self, tmp_path: Path):
+        input_path = tmp_path / "video.mp4"
+        output_path = tmp_path / "out.mp4"
+
+        with pytest.raises(ValueError, match="Unknown resolution: 480p"):
+            await scale_to_resolution(input_path, output_path, "480p")
+
+    @pytest.mark.asyncio
+    async def test_scale_to_resolution_creates_parent_dir(self, tmp_path: Path):
+        input_path = tmp_path / "video.mp4"
+        output_path = tmp_path / "deep" / "nested" / "out.mp4"
+
+        proc = _make_mock_process()
+        with patch("src.services.ffmpeg.asyncio.create_subprocess_exec", return_value=proc):
+            await scale_to_resolution(input_path, output_path, "1080p")
+
+        assert output_path.parent.exists()
