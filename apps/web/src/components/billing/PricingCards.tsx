@@ -20,6 +20,8 @@ import { Label } from "@/components/ui/label"
 type PricingCardsProps = {
   currentTier?: string | null
   isLoggedIn: boolean
+  priceMonthly: string
+  priceAnnual: string
 }
 
 const FREE_FEATURES = [
@@ -41,7 +43,7 @@ const PRO_FEATURES = [
   "Priority processing",
 ]
 
-export function PricingCards({ currentTier, isLoggedIn }: PricingCardsProps) {
+export function PricingCards({ currentTier, isLoggedIn, priceMonthly, priceAnnual }: PricingCardsProps) {
   const [annual, setAnnual] = useState(false)
   const [loading, setLoading] = useState(false)
   const router = useRouter()
@@ -58,9 +60,7 @@ export function PricingCards({ currentTier, isLoggedIn }: PricingCardsProps) {
 
     setLoading(true)
     try {
-      const priceId = annual
-        ? process.env.NEXT_PUBLIC_STRIPE_PRICE_ANNUAL!
-        : process.env.NEXT_PUBLIC_STRIPE_PRICE_MONTHLY!
+      const priceId = annual ? priceAnnual : priceMonthly
 
       const res = await fetch("/api/stripe/checkout", {
         method: "POST",

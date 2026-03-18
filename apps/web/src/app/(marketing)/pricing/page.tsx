@@ -53,6 +53,8 @@ export default async function PricingPage() {
           <PricingCards
             currentTier={profile?.tier ?? null}
             isLoggedIn={!!profile}
+            priceMonthly={process.env.STRIPE_PRICE_MONTHLY!}
+            priceAnnual={process.env.STRIPE_PRICE_ANNUAL!}
           />
         </div>
       </main>
