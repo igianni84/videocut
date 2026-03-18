@@ -60,8 +60,8 @@
 ### Stato Corrente
 | | |
 |---|---|
-| **Ultima fase completata** | Phase 6 — Preview & Download (2026-03-17) |
-| **Prossima fase** | Phase 7 — Stripe Integration & Monetization |
+| **Ultima fase completata** | Phase 7 — Stripe Integration & Monetization (2026-03-18) |
+| **Prossima fase** | Phase 8 — Polish & Launch |
 
 ### Reference Index
 
@@ -98,23 +98,64 @@
 - **Repo:** `github.com/igianni84/videocut`
 - **Branch strategy:** `main` (production), `feature/*` (feature branches)
 
-### Claude Code Skills installate
+### Skills & Comandi Custom
 
-```bash
-# Tier 1 — Core
-npx skillsadd supabase/agent-skills/supabase-postgres-best-practices
-npx skillsadd vercel-labs/next-skills/next-best-practices
-npx skillsadd wshobson/agents/nextjs-app-router-patterns
-npx skillsadd vercel-labs/agent-skills/vercel-react-best-practices
-npx skillsadd vercel-labs/agent-skills/deploy-to-vercel
-npx skillsadd wshobson/agents/typescript-advanced-types
+#### Comandi custom (`.claude/commands/` — invocabili con `/nome`)
 
-# Tier 2 — Utili
-npx skillsadd wshobson/agents/tailwind-design-system
-npx skillsadd shadcn/ui/shadcn
-npx skillsadd anthropics/skills/webapp-testing
-npx skillsadd currents-dev/playwright-best-practices-skill/playwright-best-practices
-npx skillsadd wshobson/agents/python-testing-patterns
-npx skillsadd wshobson/agents/python-performance-optimization
-npx skillsadd supercent-io/skills-template/security-best-practices
-```
+| Comando | Quando usarlo |
+|---------|---------------|
+| `/phase <N>` | Eseguire una fase del progetto |
+| `/backend-review` | Dopo modifiche in `apps/processor/`, prima di commit backend |
+| `/ui-review` | Dopo modifiche a componenti/pages in `apps/web/`, review UX/UI |
+| `/test-all` | Dopo aver scritto codice, prima di commit, verifica regressioni |
+| `/audit` | Prima di un rilascio, dopo una fase completata, review generale |
+
+#### Skills installate (`.claude/skills/` — auto-trigger in base al contesto)
+
+**Backend (Python/FastAPI):**
+- `fastapi-templates` — Pattern FastAPI (routes, dependencies, middleware)
+- `python-testing-patterns` — pytest fixtures, mocking, async test patterns
+- `multi-stage-dockerfile` — Docker multi-stage build best practices
+- `ffmpeg-patterns` — Pattern FFmpeg per VideoCut (subprocess, concat, subtitle burn-in, codec settings)
+
+**Frontend (Next.js/React):**
+- `vercel-react-best-practices` — React 19, Server Components, streaming
+- `nextjs-app-router-patterns` — App Router, layouts, middleware, route handlers
+- `tailwind-design-system` — Tailwind v4 design system, tokens, variants
+- `shadcn` — Genera e configura componenti shadcn/ui
+- `typescript-advanced-types` — Pattern TypeScript avanzati, generics, utility types
+
+**Testing:**
+- `vitest` — Pattern Vitest, configurazione, mocking
+
+**Quality & Security:**
+- `security-best-practices` — OWASP, input validation, auth patterns
+
+**Infrastructure:**
+- `supabase-postgres-best-practices` — Query, RLS, indici, migrations
+- `deploy-to-vercel` — Deploy Next.js su Vercel
+
+**Payments:**
+- `stripe-integration` — Checkout, webhook, subscription lifecycle, customer portal
+
+**Globali (disponibili in tutti i progetti):**
+- `find-skills`, `pdf`, `systematic-debugging`, `secure-code-guardian`, `secrets-management`, `github-actions-templates`
+
+#### Regole di auto-lancio skill
+
+Le skill si attivano automaticamente in base al contesto. In aggiunta, segui queste regole:
+
+| Quando... | Lancia automaticamente... |
+|-----------|--------------------------|
+| Modifichi file in `apps/processor/` | Applica `fastapi-templates` |
+| Modifichi `apps/processor/src/services/ffmpeg.py` | Applica `ffmpeg-patterns` |
+| Modifichi componenti/pages in `apps/web/` | Applica `vercel-react-best-practices`, `tailwind-design-system`, `shadcn` |
+| Scrivi/modifichi test frontend | Applica `vitest` |
+| Scrivi/modifichi test backend | Applica `python-testing-patterns` |
+| Lavori su query SQL/schema/migrations | Applica `supabase-postgres-best-practices` |
+| Implementi auth/security/input validation | Applica `security-best-practices`, `secure-code-guardian` |
+| Modifichi Dockerfile | Applica `multi-stage-dockerfile` |
+| Lavori su `apps/web/src/app/api/stripe/` | Applica `stripe-integration` |
+| Prima di ogni commit (automatico in `/phase`) | Lancia `/test-all` |
+| Dopo una fase completata | Lancia `/audit` per verificare qualità |
+| Review codice (su richiesta utente) | Lancia `/backend-review` e/o `/ui-review` in base all'area |

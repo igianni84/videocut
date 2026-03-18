@@ -9,8 +9,8 @@ SaaS per content creator che automatizza l'editing video: rimozione pause, sotto
 
 | | |
 |---|---|
-| **Ultima fase completata** | Phase 6 — Preview & Download (2026-03-17) |
-| **Prossima fase** | Phase 7 — Stripe Integration & Monetization |
+| **Ultima fase completata** | Phase 7 — Stripe Integration & Monetization (2026-03-18) |
+| **Prossima fase** | Phase 8 — Polish & Launch |
 
 ---
 
@@ -221,24 +221,26 @@ _Diagramma dettagliato → `docs/architecture.md`_
 
 ---
 
-### Fase 7 — Stripe Integration & Monetization
+### Fase 7 — Stripe Integration & Monetization ✅
 > Pagamenti funzionanti, free/pro tier enforced end-to-end.
 
+**Completata:** 2026-03-18
+
 **Deliverables:**
-- Prodotti e prezzi Stripe (mensile €10, annuale €100)
-- Stripe Checkout per upgrade a Pro
-- Stripe Customer Portal per gestione abbonamento
-- Webhook handler (subscription created/updated/deleted/payment_failed)
-- Sync stato subscription → Supabase DB
-- Enforcement limiti: frontend (UI + CTA), API (validazione), processing (verifica tier)
-- Pagina pricing
-- Gestione downgrade (pro → free)
+- [x] Prodotti e prezzi Stripe (mensile €10, annuale €100)
+- [x] Stripe Checkout per upgrade a Pro
+- [x] Stripe Customer Portal per gestione abbonamento
+- [x] Webhook handler (subscription created/updated/deleted/payment_failed)
+- [x] Sync stato subscription → Supabase DB
+- [x] Enforcement limiti: frontend (UI + CTA), API (validazione), processing (verifica tier)
+- [x] Pagina pricing
+- [x] Gestione downgrade (pro → free)
 
 **Verifiche:**
-- Checkout flow completo (test mode)
-- Webhook aggiorna stato correttamente
-- Free user bloccato su > 60s
-- Pro user processa fino a 3 min
+- [x] Checkout flow completo (test mode)
+- [x] Webhook aggiorna stato correttamente
+- [x] Free user bloccato su > 60s
+- [x] Pro user processa fino a 3 min
 
 ---
 

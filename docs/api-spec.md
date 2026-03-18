@@ -222,17 +222,15 @@ Autenticazione: header `Authorization: Bearer <CRON_SECRET>` (impostato da Verce
 
 ---
 
-### Billing
+### Stripe (`/api/stripe/`)
 
-#### `POST /api/billing/checkout`
-Crea una Stripe Checkout session per upgrade a Pro.
+#### `POST /api/stripe/checkout`
+Crea una Stripe Checkout session per upgrade a Pro. Richiede autenticazione.
 
 **Request:**
 ```json
 {
-  "priceId": "price_monthly_or_annual",
-  "successUrl": "/dashboard?upgraded=true",
-  "cancelUrl": "/pricing"
+  "priceId": "price_monthly_or_annual"
 }
 ```
 
@@ -243,8 +241,13 @@ Crea una Stripe Checkout session per upgrade a Pro.
 }
 ```
 
-#### `POST /api/billing/portal`
-Crea una Stripe Customer Portal session per gestione abbonamento.
+**Errori:**
+- 401: Non autenticato
+- 400: priceId non valido
+- 404: Profilo non trovato
+
+#### `POST /api/stripe/customer-portal`
+Crea una Stripe Customer Portal session per gestione abbonamento. Richiede autenticazione.
 
 **Response 200:**
 ```json
@@ -253,31 +256,25 @@ Crea una Stripe Customer Portal session per gestione abbonamento.
 }
 ```
 
-#### `GET /api/billing/status`
-Stato abbonamento dell'utente corrente.
+**Errori:**
+- 401: Non autenticato
+- 400: Nessun account billing trovato (no stripe_customer_id)
 
-**Response 200:**
-```json
-{
-  "tier": "pro",
-  "status": "active",
-  "periodEnd": "2026-04-16T10:00:00Z",
-  "cancelAtPeriodEnd": false
-}
-```
-
----
-
-### Webhooks
-
-#### `POST /api/webhooks/stripe`
-Riceve eventi da Stripe. Autenticazione via signature verification.
+#### `POST /api/stripe/webhook`
+Riceve eventi da Stripe. Autenticazione via `stripe-signature` header (webhook secret verification).
 
 **Eventi gestiti:**
-- `checkout.session.completed` → attiva subscription
-- `customer.subscription.updated` → aggiorna stato
-- `customer.subscription.deleted` → downgrade a free
-- `invoice.payment_failed` → marca subscription come past_due
+
+| Evento | Azione DB |
+|--------|-----------|
+| `checkout.session.completed` | tier=pro, stripe_customer_id, stripe_subscription_id, subscription_status=active, subscription_period_end |
+| `customer.subscription.updated` | Aggiorna subscription_status, subscription_period_end. tier=free solo se status canceled/unpaid |
+| `customer.subscription.deleted` | tier=free, subscription_status=canceled, clear subscription_id + period_end |
+| `invoice.payment_failed` | subscription_status=past_due (tier resta pro per Smart Retries) |
+
+**Idempotenza:** Ogni evento viene salvato in `subscription_events` con `stripe_event_id` univoco. Duplicati vengono ignorati.
+
+**Response:** Sempre 200 (anche in caso di errori interni, per evitare retry da Stripe)
 
 ---
 

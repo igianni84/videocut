@@ -196,23 +196,34 @@ _Deliverables e verifiche dettagliate per ogni fase → `tasks/plans/master-plan
 
 ## Fase 7 — Stripe Integration & Monetization
 
-- [ ] Creare prodotti e prezzi Stripe (mensile €10, annuale €100)
-- [ ] Stripe Checkout session per upgrade a Pro
-- [ ] Stripe Customer Portal per gestione abbonamento
-- [ ] Webhook handler per eventi Stripe (subscription created/updated/deleted/payment_failed)
-- [ ] Sync stato subscription in Supabase DB
-- [ ] Enforcement limiti:
-  - [ ] Frontend: UI mostra limiti e CTA upgrade
-  - [ ] API: validazione durata/risoluzione in base al tier
-  - [ ] Processing: verifica tier prima di iniziare il job
-- [ ] Pagina pricing
-- [ ] Trial period (opzionale, da decidere)
-- [ ] Gestione downgrade (da pro a free)
-- [ ] **Test:** Checkout flow completo (test mode Stripe)
-- [ ] **Test:** Webhook aggiorna correttamente lo stato
-- [ ] **Test:** Free user bloccato su video > 60s
-- [ ] **Test:** Pro user può processare video fino a 3 min
-- [ ] **Docs:** Aggiornare docs/
+- [x] Creare prodotti e prezzi Stripe (mensile €10, annuale €100)
+- [x] Stripe Checkout session per upgrade a Pro
+- [x] Stripe Customer Portal per gestione abbonamento
+- [x] Webhook handler per eventi Stripe (subscription created/updated/deleted/payment_failed)
+- [x] Sync stato subscription in Supabase DB
+- [x] Enforcement limiti:
+  - [x] Frontend: UI mostra limiti e CTA upgrade
+  - [x] API: validazione durata/risoluzione in base al tier
+  - [x] Processing: verifica tier prima di iniziare il job
+- [x] Pagina pricing
+- [x] Trial period (opzionale, da decidere)
+- [x] Gestione downgrade (da pro a free)
+- [x] **Test:** Checkout flow completo (test mode Stripe)
+- [x] **Test:** Webhook aggiorna correttamente lo stato
+- [x] **Test:** Free user bloccato su video > 60s
+- [x] **Test:** Pro user può processare video fino a 3 min
+- [x] **Docs:** Aggiornare docs/
+
+### Note post-completamento
+- Stripe SDK installed, lazy singleton in `lib/stripe.ts`
+- 3 API routes: `/api/stripe/checkout`, `/api/stripe/webhook`, `/api/stripe/customer-portal`
+- Webhook idempotency via `subscription_events` table (unique `stripe_event_id`)
+- Pricing page at `/pricing` with monthly/annual toggle
+- Dashboard: upgrade CTA in Plan card + Quick Actions
+- ProfileForm: Subscription card with status badges, past_due warning, cancellation notice
+- Tier enforcement: API-level (jobs route) + processor-level (last-line-of-defense)
+- Defense-in-depth: pro tier without active/trialing subscription treated as free
+- 150 frontend tests (9 new Stripe + tier tests), 194 Python tests — all pass
 
 ## Fase 8 — Polish & Launch
 
