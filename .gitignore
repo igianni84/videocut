@@ -17,12 +17,18 @@ out/
 dist/
 build/
 
-# IDE
+# IDE & AI tools
 .vscode/
 .idea/
+.trae/
+.agent/
+.agents/
 *.swp
 *.swo
 .DS_Store
+
+# Screenshots
+screen/
 
 # Testing
 coverage/
