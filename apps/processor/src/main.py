@@ -1,4 +1,5 @@
 import logging
+import re
 from contextlib import asynccontextmanager
 from collections.abc import AsyncIterator
 
@@ -13,14 +14,34 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name
 logger = logging.getLogger(__name__)
 
 
+def _redact_url(url: str) -> str:
+    """Redact password from URL for safe logging."""
+    return re.sub(r"://([^:]+):([^@]+)@", r"://\1:***@", url)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     logger.info("VideoCut Processor starting up")
-    redis_settings = parse_redis_url(settings.redis_url)
-    app.state.redis_pool = await create_pool(redis_settings)
-    logger.info("Redis pool created (%s)", settings.redis_url)
+    try:
+        redis_settings = parse_redis_url(settings.redis_url)
+        app.state.redis_pool = await create_pool(redis_settings)
+        logger.info("Redis pool created (%s)", _redact_url(settings.redis_url))
+    except Exception as exc:
+        logger.warning("Redis unavailable, running in degraded mode: %s", exc)
+        app.state.redis_pool = None
+
+    # Check Supabase connectivity (non-blocking)
+    try:
+        from src.services.supabase_client import get_supabase
+        sb = get_supabase()
+        sb.table("jobs").select("id").limit(1).execute()
+        logger.info("Supabase connectivity OK")
+    except Exception as exc:
+        logger.warning("Supabase check failed (non-blocking): %s", exc)
+
     yield
-    await app.state.redis_pool.close()
+    if app.state.redis_pool is not None:
+        await app.state.redis_pool.close()
     logger.info("VideoCut Processor shutting down")
 
 

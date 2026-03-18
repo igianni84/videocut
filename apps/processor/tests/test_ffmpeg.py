@@ -110,9 +110,9 @@ class TestGetVideoInfo:
         with patch("src.services.ffmpeg.asyncio.create_subprocess_exec", return_value=proc):
             info = await get_video_info(tmp_path / "video.mp4")
 
-        assert info["duration"] == 120.5
-        assert info["width"] == 1920
-        assert info["height"] == 1080
+        assert info.duration == 120.5
+        assert info.width == 1920
+        assert info.height == 1080
 
     @pytest.mark.asyncio
     async def test_no_video_stream(self, tmp_path: Path):
@@ -125,9 +125,9 @@ class TestGetVideoInfo:
         with patch("src.services.ffmpeg.asyncio.create_subprocess_exec", return_value=proc):
             info = await get_video_info(tmp_path / "audio.mp3")
 
-        assert info["duration"] == 60.0
-        assert info["width"] is None
-        assert info["height"] is None
+        assert info.duration == 60.0
+        assert info.width is None
+        assert info.height is None
 
     @pytest.mark.asyncio
     async def test_uses_ffprobe_command(self, tmp_path: Path):

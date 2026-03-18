@@ -1,7 +1,10 @@
 import logging
 from pathlib import Path
 
+import numpy as np
+import soundfile as sf
 import torch
+import torchaudio.functional as F
 
 from src.models.job import VadSegment
 
@@ -28,12 +31,11 @@ class VadService:
         self._load_model()
         assert self._model is not None
 
-        import torchaudio
-
-        wav, sr = torchaudio.load(str(audio_path))
+        data, sr = sf.read(str(audio_path), dtype="float32")
+        wav = torch.from_numpy(np.atleast_2d(data.T if data.ndim > 1 else data))
         # Ensure 16kHz mono
         if sr != 16000:
-            wav = torchaudio.functional.resample(wav, sr, 16000)
+            wav = F.resample(wav, sr, 16000)
             sr = 16000
         if wav.shape[0] > 1:
             wav = wav.mean(dim=0, keepdim=True)

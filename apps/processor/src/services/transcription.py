@@ -1,5 +1,6 @@
 import logging
 from pathlib import Path
+from typing import Any
 
 from src.models.job import TranscriptionResult, TranscriptionSegment, TranscriptionWord
 
@@ -30,7 +31,7 @@ class TranscriptionService:
         self._load_model()
         assert self._model is not None
 
-        kwargs: dict = {"word_timestamps": True, "vad_filter": False}
+        kwargs: dict[str, Any] = {"word_timestamps": True, "vad_filter": False}
         if language and language != "auto":
             kwargs["language"] = language
 

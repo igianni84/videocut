@@ -89,32 +89,33 @@ def detect_face_positions(
 
     frame_idx = 0
 
-    with mp_face.FaceDetection(min_detection_confidence=0.5) as face_det:
-        while True:
-            ret, frame = cap.read()
-            if not ret:
-                break
+    try:
+        with mp_face.FaceDetection(min_detection_confidence=0.5) as face_det:
+            while True:
+                ret, frame = cap.read()
+                if not ret:
+                    break
 
-            if frame_idx % sample_rate == 0:
-                rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                results = face_det.process(rgb)
+                if frame_idx % sample_rate == 0:
+                    rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                    results = face_det.process(rgb)
 
-                if results.detections:
-                    # Use the first (most confident) detection
-                    det = results.detections[0]
-                    bbox = det.location_data.relative_bounding_box
-                    positions.append(FacePosition(
-                        x_center=bbox.xmin + bbox.width / 2,
-                        y_center=bbox.ymin + bbox.height / 2,
-                        width=bbox.width,
-                        height=bbox.height,
-                    ))
-                else:
-                    positions.append(None)
+                    if results.detections:
+                        # Use the first (most confident) detection
+                        det = results.detections[0]
+                        bbox = det.location_data.relative_bounding_box
+                        positions.append(FacePosition(
+                            x_center=bbox.xmin + bbox.width / 2,
+                            y_center=bbox.ymin + bbox.height / 2,
+                            width=bbox.width,
+                            height=bbox.height,
+                        ))
+                    else:
+                        positions.append(None)
 
-            frame_idx += 1
-
-    cap.release()
+                frame_idx += 1
+    finally:
+        cap.release()
     logger.info("Face detection: %d samples, %d faces found",
                 len(positions), sum(1 for p in positions if p is not None))
     return positions

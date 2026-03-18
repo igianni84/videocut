@@ -3,9 +3,12 @@ import json
 import logging
 from pathlib import Path
 
-from src.models.job import CutSegment, SpeedSegment
+from src.config.settings import settings
+from src.models.job import CutSegment, SpeedSegment, VideoInfo
 
 logger = logging.getLogger(__name__)
+
+_STDERR_MAX_CHARS = 2000
 
 
 async def _run(cmd: list[str]) -> str:
@@ -15,9 +18,22 @@ async def _run(cmd: list[str]) -> str:
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
     )
-    stdout, stderr = await proc.communicate()
+    try:
+        stdout, stderr = await asyncio.wait_for(
+            proc.communicate(),
+            timeout=settings.ffmpeg_command_timeout,
+        )
+    except asyncio.TimeoutError:
+        proc.kill()
+        await proc.wait()
+        raise RuntimeError(
+            f"FFmpeg command timed out after {settings.ffmpeg_command_timeout}s"
+        )
     if proc.returncode != 0:
-        raise RuntimeError(f"FFmpeg failed (code {proc.returncode}): {stderr.decode()}")
+        err_msg = stderr.decode()
+        if len(err_msg) > _STDERR_MAX_CHARS:
+            err_msg = err_msg[:_STDERR_MAX_CHARS] + f"... [truncated, {len(stderr)} bytes total]"
+        raise RuntimeError(f"FFmpeg failed (code {proc.returncode}): {err_msg}")
     return stdout.decode()
 
 
@@ -35,7 +51,7 @@ async def extract_audio(input_path: Path, output_path: Path) -> None:
     logger.info("Audio extracted -> %s", output_path)
 
 
-async def get_video_info(input_path: Path) -> dict:
+async def get_video_info(input_path: Path) -> VideoInfo:
     out = await _run([
         "ffprobe",
         "-v", "quiet",
@@ -48,12 +64,19 @@ async def get_video_info(input_path: Path) -> dict:
     duration = float(probe["format"]["duration"])
     width = None
     height = None
+    fps = None
     for stream in probe.get("streams", []):
         if stream.get("codec_type") == "video":
             width = int(stream["width"])
             height = int(stream["height"])
+            # Extract FPS from r_frame_rate (e.g. "30/1" or "30000/1001")
+            r_frame_rate = stream.get("r_frame_rate", "")
+            if "/" in r_frame_rate:
+                num, den = r_frame_rate.split("/")
+                if int(den) > 0:
+                    fps = int(num) / int(den)
             break
-    return {"duration": duration, "width": width, "height": height}
+    return VideoInfo(duration=duration, width=width, height=height, fps=fps)
 
 
 async def cut_and_concat(
@@ -88,10 +111,9 @@ async def cut_and_concat(
             atrim += f",{fades}"
         filter_parts.append(f"{atrim}[a{i}];")
 
-    # Concat
-    v_inputs = "".join(f"[v{i}]" for i in range(n))
-    a_inputs = "".join(f"[a{i}]" for i in range(n))
-    filter_parts.append(f"{v_inputs}{a_inputs}concat=n={n}:v=1:a=1[outv][outa]")
+    # Concat — interleaved [v0][a0][v1][a1]... as FFmpeg requires
+    interleaved = "".join(f"[v{i}][a{i}]" for i in range(n))
+    filter_parts.append(f"{interleaved}concat=n={n}:v=1:a=1[outv][outa]")
 
     filtergraph = "".join(filter_parts)
 
@@ -169,10 +191,9 @@ async def apply_smart_speed(
             f"asetpts=PTS-STARTPTS,atempo={speed:.4f}[a{i}];"
         )
 
-    # Concat all segments
-    v_inputs = "".join(f"[v{i}]" for i in range(n))
-    a_inputs = "".join(f"[a{i}]" for i in range(n))
-    filter_parts.append(f"{v_inputs}{a_inputs}concat=n={n}:v=1:a=1[outv][outa]")
+    # Concat all segments — interleaved [v0][a0][v1][a1]... as FFmpeg requires
+    interleaved = "".join(f"[v{i}][a{i}]" for i in range(n))
+    filter_parts.append(f"{interleaved}concat=n={n}:v=1:a=1[outv][outa]")
 
     filtergraph = "".join(filter_parts)
 

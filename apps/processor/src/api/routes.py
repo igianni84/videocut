@@ -1,6 +1,7 @@
+import asyncio
 import logging
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 
 from src.api.dependencies import verify_api_key
 from src.models.job import ProcessRequest
@@ -13,6 +14,10 @@ router = APIRouter()
 @router.get("/health")
 async def health(request: Request):
     redis_ok = False
+    ffmpeg_ok = False
+    supabase_ok = False
+
+    # Check Redis
     try:
         pool = getattr(request.app.state, "redis_pool", None)
         if pool is not None:
@@ -21,15 +26,45 @@ async def health(request: Request):
     except Exception:
         pass
 
+    # Check FFmpeg availability
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            "ffmpeg", "-version",
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        await proc.communicate()
+        ffmpeg_ok = proc.returncode == 0
+    except Exception:
+        pass
+
+    # Check Supabase connectivity
+    try:
+        from src.services.supabase_client import get_supabase
+        sb = get_supabase()
+        await asyncio.to_thread(
+            lambda: sb.table("jobs").select("id").limit(1).execute()
+        )
+        supabase_ok = True
+    except Exception:
+        pass
+
+    all_ok = redis_ok and ffmpeg_ok and supabase_ok
+    status = "ok" if all_ok else ("degraded" if ffmpeg_ok else "unhealthy")
+
     return {
-        "status": "ok" if redis_ok else "degraded",
+        "status": status,
         "redis": "connected" if redis_ok else "disconnected",
+        "ffmpeg": "available" if ffmpeg_ok else "unavailable",
+        "supabase": "connected" if supabase_ok else "disconnected",
     }
 
 
 @router.post("/process", dependencies=[Depends(verify_api_key)])
 async def process_video(body: ProcessRequest, request: Request):
-    pool = request.app.state.redis_pool
+    pool = getattr(request.app.state, "redis_pool", None)
+    if pool is None:
+        raise HTTPException(status_code=503, detail="Redis unavailable, cannot enqueue jobs")
     job = await pool.enqueue_job(
         "process_video_task",
         body.job_id,

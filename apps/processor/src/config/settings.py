@@ -13,6 +13,8 @@ class Settings(BaseSettings):
     max_retries: int = 3
     temp_dir: str = "/tmp/videocut"
     notification_url: str = ""
+    ffmpeg_command_timeout: int = 600
+    max_file_size_bytes: int = 2 * 1024 * 1024 * 1024  # 2 GB
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
 

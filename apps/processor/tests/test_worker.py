@@ -10,7 +10,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from src.models.job import CutSegment, TranscriptionResult, TranscriptionSegment, TranscriptionWord, VadSegment
+from src.models.job import CutSegment, TranscriptionResult, TranscriptionSegment, TranscriptionWord, VadSegment, VideoInfo
 from src.workers.process_video import _handle_failure, process_video_task
 
 # Common patches for the full pipeline
@@ -56,12 +56,12 @@ def _sample_cuts() -> list[CutSegment]:
     return [CutSegment(start=0.0, end=2.05), CutSegment(start=3.95, end=6.05)]
 
 
-def _video_info(duration: float = 10.0) -> dict:
-    return {"duration": duration, "width": 1920, "height": 1080}
+def _video_info(duration: float = 10.0) -> VideoInfo:
+    return VideoInfo(duration=duration, width=1920, height=1080, fps=30.0)
 
 
-def _output_info(duration: float = 4.1) -> dict:
-    return {"duration": duration, "width": 1920, "height": 1080}
+def _output_info(duration: float = 4.1) -> VideoInfo:
+    return VideoInfo(duration=duration, width=1920, height=1080, fps=30.0)
 
 
 def _setup_basic_mocks(
@@ -125,6 +125,7 @@ def _setup_basic_mocks(
     mock_supabase.update_job_progress = AsyncMock()
     mock_supabase.complete_job = AsyncMock()
     mock_supabase.upload_file = AsyncMock()
+    mock_supabase.get_job = AsyncMock(return_value={"video_id": "vid-123", "user_id": "user123"})
 
 
 class TestProcessVideoTaskSuccess:
@@ -426,7 +427,7 @@ class TestTimeoutHandling:
 
 
 class TestExceptionHandling:
-    """Unexpected exceptions trigger failure handler with retry logic."""
+    """Unexpected exceptions trigger failure handler."""
 
     @pytest.mark.asyncio
     @patch("src.workers.process_video.settings")
@@ -521,64 +522,66 @@ class TestCleanup:
 
 
 class TestHandleFailure:
-    """Test _handle_failure retry logic."""
+    """Test _handle_failure immediately fails and resets video status."""
 
     @pytest.mark.asyncio
-    @patch("src.workers.process_video.settings")
     @patch("src.workers.process_video.supabase_client")
-    async def test_retry_when_under_max(self, mock_supabase, mock_settings):
-        mock_settings.max_retries = 3
-        mock_supabase.get_job = MagicMock(return_value={"retry_count": 0})
-        mock_sb = MagicMock()
-        mock_execute = MagicMock()
-        mock_sb.table.return_value.update.return_value.eq.return_value.execute = mock_execute
-        mock_supabase.get_supabase = MagicMock(return_value=mock_sb)
-
-        await _handle_failure("job-retry", "some error")
-
-        update_args = mock_sb.table.return_value.update.call_args[0][0]
-        assert update_args["status"] == "queued"
-        assert update_args["retry_count"] == 1
-
-    @pytest.mark.asyncio
-    @patch("src.workers.process_video.settings")
-    @patch("src.workers.process_video.supabase_client")
-    async def test_fail_when_max_retries_reached(self, mock_supabase, mock_settings):
-        mock_settings.max_retries = 3
-        mock_supabase.get_job = MagicMock(return_value={"retry_count": 2})
+    async def test_fails_immediately_with_video_id(self, mock_supabase):
+        mock_supabase.get_job = AsyncMock(
+            return_value={"retry_count": 0, "video_id": "vid-abc"}
+        )
         mock_supabase.fail_job = AsyncMock()
 
-        await _handle_failure("job-final-fail", "persistent error")
+        await _handle_failure("job-fail", "some error")
 
         mock_supabase.fail_job.assert_called_once_with(
-            "job-final-fail",
-            "persistent error",
-            retry_count=3,
+            "job-fail",
+            "some error",
+            retry_count=1,
+            video_id="vid-abc",
         )
 
     @pytest.mark.asyncio
-    @patch("src.workers.process_video.settings")
     @patch("src.workers.process_video.supabase_client")
-    async def test_job_not_found(self, mock_supabase, mock_settings):
-        mock_supabase.get_job = MagicMock(return_value=None)
+    async def test_fails_without_video_id(self, mock_supabase):
+        mock_supabase.get_job = AsyncMock(
+            return_value={"retry_count": 2, "video_id": None}
+        )
+        mock_supabase.fail_job = AsyncMock()
+
+        await _handle_failure("job-no-vid", "error")
+
+        mock_supabase.fail_job.assert_called_once_with(
+            "job-no-vid",
+            "error",
+            retry_count=3,
+            video_id=None,
+        )
+
+    @pytest.mark.asyncio
+    @patch("src.workers.process_video.supabase_client")
+    async def test_job_not_found(self, mock_supabase):
+        mock_supabase.get_job = AsyncMock(return_value=None)
         mock_supabase.fail_job = AsyncMock()
         await _handle_failure("nonexistent", "error")
         mock_supabase.fail_job.assert_not_called()
 
     @pytest.mark.asyncio
-    @patch("src.workers.process_video.settings")
     @patch("src.workers.process_video.supabase_client")
-    async def test_null_retry_count_treated_as_zero(self, mock_supabase, mock_settings):
-        mock_settings.max_retries = 3
-        mock_supabase.get_job = MagicMock(return_value={"retry_count": None})
-        mock_sb = MagicMock()
-        mock_sb.table.return_value.update.return_value.eq.return_value.execute = MagicMock()
-        mock_supabase.get_supabase = MagicMock(return_value=mock_sb)
+    async def test_null_retry_count_treated_as_zero(self, mock_supabase):
+        mock_supabase.get_job = AsyncMock(
+            return_value={"retry_count": None, "video_id": "vid-xyz"}
+        )
+        mock_supabase.fail_job = AsyncMock()
 
         await _handle_failure("job-null-retry", "error")
 
-        update_args = mock_sb.table.return_value.update.call_args[0][0]
-        assert update_args["retry_count"] == 1
+        mock_supabase.fail_job.assert_called_once_with(
+            "job-null-retry",
+            "error",
+            retry_count=1,
+            video_id="vid-xyz",
+        )
 
 
 class TestSubtitleDisabledWithCuts:
@@ -872,9 +875,9 @@ class TestResolutionScaling:
             mock_compute_smart, mock_remap_speed, mock_detect_faces, mock_crop_burn,
             tmp_path,
             info_side_effect=[
-                {"duration": 10.0, "width": 1920, "height": 1080},  # initial
-                {"duration": 4.1, "width": 1920, "height": 1080},   # after crop/burn (scale check)
-                {"duration": 4.1, "width": 1280, "height": 720},    # output info after scaling
+                VideoInfo(duration=10.0, width=1920, height=1080, fps=30.0),  # initial
+                VideoInfo(duration=4.1, width=1920, height=1080, fps=30.0),   # after crop/burn (scale check)
+                VideoInfo(duration=4.1, width=1280, height=720, fps=30.0),    # output info after scaling
             ],
             mock_scale_resolution=mock_scale_resolution,
         )
@@ -939,9 +942,9 @@ class TestResolutionScaling:
             mock_compute_smart, mock_remap_speed, mock_detect_faces, mock_crop_burn,
             tmp_path,
             info_side_effect=[
-                {"duration": 10.0, "width": 1920, "height": 1080},  # initial
-                {"duration": 4.1, "width": 1920, "height": 1080},   # after crop/burn (scale check)
-                {"duration": 4.1, "width": 1920, "height": 1080},   # output info
+                VideoInfo(duration=10.0, width=1920, height=1080, fps=30.0),  # initial
+                VideoInfo(duration=4.1, width=1920, height=1080, fps=30.0),   # after crop/burn (scale check)
+                VideoInfo(duration=4.1, width=1920, height=1080, fps=30.0),   # output info
             ],
             mock_scale_resolution=mock_scale_resolution,
         )
