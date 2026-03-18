@@ -1,8 +1,6 @@
 import { NextResponse } from "next/server"
-import { createClient } from "@supabase/supabase-js"
 import { createClient as createServerClient } from "@/lib/supabase/server"
-import { validateFileType, validateFileSize, getExtensionFromMime } from "@/lib/videos/validation"
-import type { Database } from "@/types/database.types"
+import { validateFileType, getExtensionFromMime, MAX_FILE_SIZE_BYTES } from "@/lib/videos/validation"
 
 export async function POST(request: Request) {
   // Authenticate via session cookie
@@ -27,10 +25,13 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: typeError }, { status: 400 })
   }
 
-  // Validate file size
-  const sizeError = validateFileSize(fileSize)
-  if (sizeError) {
-    return NextResponse.json({ error: sizeError }, { status: 413 })
+  // Validate file size against absolute max (tier-specific check is done client-side)
+  if (fileSize > MAX_FILE_SIZE_BYTES) {
+    const maxMB = MAX_FILE_SIZE_BYTES / (1024 * 1024)
+    return NextResponse.json(
+      { error: `File is too large. Maximum size is ${maxMB} MB.` },
+      { status: 413 }
+    )
   }
 
   // Generate storage path: {userId}/{uuid}{ext}
@@ -38,26 +39,5 @@ export async function POST(request: Request) {
   const fileId = crypto.randomUUID()
   const storagePath = `${user.id}/${fileId}${ext}`
 
-  // Create signed upload URL using service role client
-  const serviceClient = createClient<Database>(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  )
-
-  const { data, error } = await serviceClient.storage
-    .from("originals")
-    .createSignedUploadUrl(storagePath)
-
-  if (error) {
-    console.error("Failed to create signed URL:", error.message)
-    return NextResponse.json(
-      { error: "Failed to create upload URL" },
-      { status: 500 }
-    )
-  }
-
-  return NextResponse.json({
-    signedUrl: data.signedUrl,
-    storagePath,
-  })
+  return NextResponse.json({ storagePath })
 }

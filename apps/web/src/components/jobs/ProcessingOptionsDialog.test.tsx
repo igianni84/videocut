@@ -40,20 +40,23 @@ describe("ProcessingOptionsDialog", () => {
     expect(getByText("Enable Subtitles")).toBeInTheDocument()
   })
 
-  it("shows resolution selector when dialog is opened", () => {
+  it("shows resolution selector when Output tab is active", () => {
     const { getByText } = render(
       <ProcessingOptionsDialog videoId="vid-1" />
     )
     fireEvent.click(getByText("Process"))
+    fireEvent.click(getByText("Output"))
     expect(getByText("Output Resolution")).toBeInTheDocument()
   })
 
-  it("shows Resolution label in dialog", () => {
+  it("shows tabs in dialog", () => {
     const { getByText } = render(
       <ProcessingOptionsDialog videoId="vid-1" />
     )
     fireEvent.click(getByText("Process"))
-    expect(getByText("Resolution")).toBeInTheDocument()
+    expect(getByText("Subtitles")).toBeInTheDocument()
+    expect(getByText("Speed & Audio")).toBeInTheDocument()
+    expect(getByText("Output")).toBeInTheDocument()
   })
 
   it("submits with options and calls onProcessStarted", async () => {

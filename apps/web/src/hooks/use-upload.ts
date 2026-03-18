@@ -6,11 +6,12 @@ import {
   validateFileSize,
   validateDuration,
 } from "@/lib/videos/validation"
+import { createClient } from "@/lib/supabase/client"
 import type {
   Tier,
   UploadState,
   VideoMetadata,
-  SignedUrlResponse,
+  PrepareUploadResponse,
   RegisterVideoPayload,
 } from "@/lib/videos/types"
 
@@ -20,12 +21,26 @@ const INITIAL_STATE: UploadState = {
   error: null,
 }
 
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!
+
 function extractVideoMetadata(file: File): Promise<VideoMetadata> {
   return new Promise((resolve, reject) => {
     const video = document.createElement("video")
     video.preload = "metadata"
 
+    const timeout = setTimeout(() => {
+      URL.revokeObjectURL(video.src)
+      video.onloadedmetadata = null
+      video.onerror = null
+      reject(
+        new Error(
+          "Timed out reading video metadata. The file format may not be supported by your browser."
+        )
+      )
+    }, 15_000)
+
     video.onloadedmetadata = () => {
+      clearTimeout(timeout)
       URL.revokeObjectURL(video.src)
       if (!isFinite(video.duration) || video.duration <= 0) {
         reject(new Error("Could not determine video duration."))
@@ -39,6 +54,7 @@ function extractVideoMetadata(file: File): Promise<VideoMetadata> {
     }
 
     video.onerror = () => {
+      clearTimeout(timeout)
       URL.revokeObjectURL(video.src)
       reject(new Error("Failed to read video metadata. File may be corrupted."))
     }
@@ -47,10 +63,10 @@ function extractVideoMetadata(file: File): Promise<VideoMetadata> {
   })
 }
 
-async function requestSignedUrl(
+async function requestUploadPath(
   contentType: string,
   fileSize: number
-): Promise<SignedUrlResponse> {
+): Promise<PrepareUploadResponse> {
   const res = await fetch("/api/upload/signed-url", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -59,45 +75,71 @@ async function requestSignedUrl(
 
   if (!res.ok) {
     const data = await res.json()
-    throw new Error(data.error || "Failed to get upload URL")
+    throw new Error(data.error || "Failed to prepare upload")
   }
 
   return res.json()
 }
 
-function uploadToStorage(
-  signedUrl: string,
+async function uploadWithTus(
   file: File,
+  storagePath: string,
+  accessToken: string,
   onProgress: (pct: number) => void,
   signal: AbortSignal
 ): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const xhr = new XMLHttpRequest()
+  const tus = await import("tus-js-client")
 
-    signal.addEventListener("abort", () => {
-      xhr.abort()
+  return new Promise((resolve, reject) => {
+    let aborted = false
+
+    const upload = new tus.Upload(file, {
+      endpoint: `${SUPABASE_URL}/storage/v1/upload/resumable`,
+      retryDelays: [0, 1000, 3000, 5000],
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "x-upsert": "true",
+      },
+      uploadDataDuringCreation: true,
+      removeFingerprintOnSuccess: true,
+      metadata: {
+        bucketName: "originals",
+        objectName: storagePath,
+        contentType: file.type,
+        cacheControl: "3600",
+      },
+      chunkSize: 6 * 1024 * 1024, // 6 MB chunks (Supabase recommended)
+      onError: (error) => {
+        if (!aborted) {
+          reject(new Error(`Upload failed: ${error.message}`))
+        }
+      },
+      onProgress: (bytesUploaded, bytesTotal) => {
+        onProgress(Math.round((bytesUploaded / bytesTotal) * 100))
+      },
+      onSuccess: () => {
+        resolve()
+      },
     })
 
-    xhr.upload.onprogress = (e) => {
-      if (e.lengthComputable) {
-        onProgress(Math.round((e.loaded / e.total) * 100))
-      }
-    }
+    signal.addEventListener("abort", () => {
+      aborted = true
+      upload.abort(true)
+      reject(new Error("Upload cancelled"))
+    })
 
-    xhr.onload = () => {
-      if (xhr.status >= 200 && xhr.status < 300) {
-        resolve()
-      } else {
-        reject(new Error(`Upload failed with status ${xhr.status}`))
-      }
-    }
-
-    xhr.onerror = () => reject(new Error("Upload failed. Check your connection."))
-    xhr.onabort = () => reject(new Error("Upload cancelled"))
-
-    xhr.open("PUT", signedUrl)
-    xhr.setRequestHeader("Content-Type", file.type)
-    xhr.send(file)
+    upload
+      .findPreviousUploads()
+      .then((previousUploads) => {
+        if (previousUploads.length > 0) {
+          upload.resumeFromPreviousUpload(previousUploads[0])
+        }
+        upload.start()
+      })
+      .catch(() => {
+        // Fingerprint storage unavailable — start fresh upload
+        upload.start()
+      })
   })
 }
 
@@ -133,7 +175,7 @@ export function useUpload() {
       const typeError = validateFileType(file.type)
       if (typeError) throw new Error(typeError)
 
-      const sizeError = validateFileSize(file.size)
+      const sizeError = validateFileSize(file.size, tier)
       if (sizeError) throw new Error(sizeError)
 
       const metadata = await extractVideoMetadata(file)
@@ -143,22 +185,25 @@ export function useUpload() {
 
       if (signal.aborted) throw new Error("Upload cancelled")
 
-      // Phase 2: Request signed URL
+      // Phase 2: Prepare upload (server validates + generates path)
       setState({ phase: "requesting-url", progress: 0, error: null })
 
-      const { signedUrl, storagePath } = await requestSignedUrl(
-        file.type,
-        file.size
-      )
+      const { storagePath } = await requestUploadPath(file.type, file.size)
+
+      // Get session token for TUS auth
+      const supabase = createClient()
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) throw new Error("Session expired. Please log in again.")
 
       if (signal.aborted) throw new Error("Upload cancelled")
 
-      // Phase 3: Upload to storage
+      // Phase 3: Upload via TUS (resumable, chunked)
       setState({ phase: "uploading", progress: 0, error: null })
 
-      await uploadToStorage(
-        signedUrl,
+      await uploadWithTus(
         file,
+        storagePath,
+        session.access_token,
         (pct) => setState({ phase: "uploading", progress: pct, error: null }),
         signal
       )

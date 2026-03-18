@@ -6,7 +6,12 @@ export const ACCEPTED_MIME_TYPES = [
   "video/webm",
 ] as const
 
-export const MAX_FILE_SIZE_BYTES = 500 * 1024 * 1024 // 500 MB
+export const FILE_SIZE_LIMITS: Record<Tier, number> = {
+  free: 50 * 1024 * 1024,  // 50 MB  (Supabase free tier)
+  pro: 500 * 1024 * 1024,  // 500 MB (Supabase pro tier)
+}
+
+export const MAX_FILE_SIZE_BYTES = FILE_SIZE_LIMITS.pro
 
 export const DURATION_LIMITS: Record<Tier, number> = {
   free: 60,
@@ -26,12 +31,13 @@ export function validateFileType(mimeType: string): string | null {
   return null
 }
 
-export function validateFileSize(sizeBytes: number): string | null {
+export function validateFileSize(sizeBytes: number, tier: Tier = "free"): string | null {
   if (sizeBytes <= 0) {
     return "File is empty."
   }
-  if (sizeBytes > MAX_FILE_SIZE_BYTES) {
-    const maxMB = MAX_FILE_SIZE_BYTES / (1024 * 1024)
+  const limit = FILE_SIZE_LIMITS[tier]
+  if (sizeBytes > limit) {
+    const maxMB = limit / (1024 * 1024)
     return `File is too large. Maximum size is ${maxMB} MB.`
   }
   return null

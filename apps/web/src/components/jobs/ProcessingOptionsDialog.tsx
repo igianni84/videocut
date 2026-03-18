@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import { Scissors } from "lucide-react"
+import { toast } from "sonner"
 import {
   Dialog,
   DialogContent,
@@ -12,8 +13,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
-import { Separator } from "@/components/ui/separator"
-import { Label } from "@/components/ui/label"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { SubtitleCustomizer } from "@/components/subtitles/SubtitleCustomizer"
 import { SubtitlePreview } from "@/components/subtitles/SubtitlePreview"
 import { SpeedControl } from "@/components/processing/SpeedControl"
@@ -27,11 +27,7 @@ import {
 import {
   DEFAULT_ADVANCED_OPTIONS,
   type AdvancedOptions,
-  type SpeedMode,
-  type OutputFormat,
-  type TargetPlatform,
 } from "@/lib/processing/types"
-import type { OutputResolution } from "@/lib/processing/types"
 import type { ProcessingOptionsPayload } from "@/lib/jobs/types"
 
 type ProcessingOptionsDialogProps = {
@@ -103,9 +99,10 @@ export function ProcessingOptionsDialog({
 
       const data = await res.json()
       setOpen(false)
+      toast.success("Processing started!")
       onProcessStarted?.(data.id)
     } catch (err) {
-      console.error("Failed to start processing:", err)
+      toast.error(err instanceof Error ? err.message : "Failed to start processing")
     } finally {
       setIsLoading(false)
     }
@@ -121,7 +118,7 @@ export function ProcessingOptionsDialog({
           </Button>
         }
       />
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-xl">
         <DialogHeader>
           <DialogTitle>Processing Options</DialogTitle>
           <DialogDescription>
@@ -129,10 +126,14 @@ export function ProcessingOptionsDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-1">
-          {/* Subtitles */}
-          <div className="space-y-3">
-            <Label className="text-sm font-semibold">Subtitles</Label>
+        <Tabs defaultValue="subtitles">
+          <TabsList className="w-full">
+            <TabsTrigger value="subtitles">Subtitles</TabsTrigger>
+            <TabsTrigger value="speed">Speed & Audio</TabsTrigger>
+            <TabsTrigger value="output">Output</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="subtitles" className="space-y-3 pt-3">
             <SubtitlePreview
               options={subtitleOptions}
               outputFormat={advancedOptions.outputFormat}
@@ -142,39 +143,24 @@ export function ProcessingOptionsDialog({
               value={subtitleOptions}
               onChange={setSubtitleOptions}
             />
-          </div>
+          </TabsContent>
 
-          <Separator />
-
-          {/* Speed */}
-          <div className="space-y-3">
-            <Label className="text-sm font-semibold">Speed</Label>
+          <TabsContent value="speed" className="space-y-4 pt-3">
             <SpeedControl
               speedMode={advancedOptions.speedMode}
               speedValue={advancedOptions.speedValue}
               onSpeedModeChange={(mode) => updateAdvanced({ speedMode: mode })}
               onSpeedValueChange={(value) => updateAdvanced({ speedValue: value })}
             />
-          </div>
-
-          <Separator />
-
-          {/* Filler Removal */}
-          <div className="space-y-3">
-            <Label className="text-sm font-semibold">Filler Removal</Label>
             <FillerRemoval
               enabled={advancedOptions.removeFillers}
               language={advancedOptions.fillerLanguage}
               onEnabledChange={(enabled) => updateAdvanced({ removeFillers: enabled })}
               onLanguageChange={(language) => updateAdvanced({ fillerLanguage: language })}
             />
-          </div>
+          </TabsContent>
 
-          <Separator />
-
-          {/* Format & Platform */}
-          <div className="space-y-3">
-            <Label className="text-sm font-semibold">Format & Platform</Label>
+          <TabsContent value="output" className="space-y-4 pt-3">
             <FormatSelector
               outputFormat={advancedOptions.outputFormat}
               smartCrop={advancedOptions.smartCrop}
@@ -183,20 +169,13 @@ export function ProcessingOptionsDialog({
               onSmartCropChange={(enabled) => updateAdvanced({ smartCrop: enabled })}
               onTargetPlatformChange={(platform) => updateAdvanced({ targetPlatform: platform })}
             />
-          </div>
-
-          <Separator />
-
-          {/* Resolution */}
-          <div className="space-y-3">
-            <Label className="text-sm font-semibold">Resolution</Label>
             <ResolutionSelector
               resolution={advancedOptions.outputResolution}
               onResolutionChange={(resolution) => updateAdvanced({ outputResolution: resolution })}
               tier={tier}
             />
-          </div>
-        </div>
+          </TabsContent>
+        </Tabs>
 
         <DialogFooter>
           <Button

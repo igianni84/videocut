@@ -13,9 +13,11 @@ type ProcessButtonProps = {
 
 export function ProcessButton({ videoId, disabled, onProcessStarted }: ProcessButtonProps) {
   const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   const handleProcess = async () => {
     setIsLoading(true)
+    setError(null)
     try {
       const options: ProcessingOptionsPayload = {}
       const res = await fetch("/api/jobs", {
@@ -32,22 +34,27 @@ export function ProcessButton({ videoId, disabled, onProcessStarted }: ProcessBu
       const data = await res.json()
       onProcessStarted?.(data.id)
     } catch (err) {
-      // Error is shown via job status — no need for toast here
-      console.error("Failed to start processing:", err)
+      const message = err instanceof Error ? err.message : "Failed to start processing"
+      setError(message)
     } finally {
       setIsLoading(false)
     }
   }
 
   return (
-    <Button
-      size="sm"
-      variant="default"
-      onClick={handleProcess}
-      disabled={disabled || isLoading}
-    >
-      <Scissors className="mr-1 h-3 w-3" />
-      {isLoading ? "Starting..." : "Process"}
-    </Button>
+    <div>
+      <Button
+        size="sm"
+        variant="default"
+        onClick={handleProcess}
+        disabled={disabled || isLoading}
+      >
+        <Scissors className="mr-1 h-3 w-3" />
+        {isLoading ? "Starting..." : "Process"}
+      </Button>
+      {error && (
+        <p className="mt-1 text-xs text-destructive">{error}</p>
+      )}
+    </div>
   )
 }

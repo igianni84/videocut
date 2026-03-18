@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import { Download, Loader2 } from "lucide-react"
+import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 
 type DownloadButtonProps = {
@@ -37,8 +38,9 @@ export function DownloadButton({
       document.body.appendChild(a)
       a.click()
       document.body.removeChild(a)
-    } catch (err) {
-      console.error("Download failed:", err)
+      toast.success("Download started!")
+    } catch {
+      toast.error("Download failed. Please try again.")
     } finally {
       setLoading(false)
     }

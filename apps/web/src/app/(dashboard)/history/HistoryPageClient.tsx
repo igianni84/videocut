@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { Clock, Download, Eye } from "lucide-react"
+import { Clock, Eye, Film, Timer } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -31,7 +31,7 @@ function daysUntilExpiry(completedAt: string | null): number {
 }
 
 function formatDate(iso: string | null): string {
-  if (!iso) return "—"
+  if (!iso) return "\u2014"
   return new Date(iso).toLocaleDateString(undefined, {
     year: "numeric",
     month: "short",
@@ -46,6 +46,25 @@ export function HistoryPageClient({ completedJobs }: HistoryPageClientProps) {
     video: Video
     job: Job
   } | null>(null)
+
+  // Summary stats
+  const totalProcessed = completedJobs.length
+  const totalTimeSaved = completedJobs.reduce((acc, job) => {
+    const original = job.videos?.duration_seconds ?? 0
+    const processed = job.output_duration_seconds ?? original
+    return acc + Math.max(0, original - processed)
+  }, 0)
+  const jobsWithDuration = completedJobs.filter(
+    (j) => (j.videos?.duration_seconds ?? 0) > 0
+  )
+  const avgReduction =
+    jobsWithDuration.length > 0
+      ? jobsWithDuration.reduce((acc, job) => {
+          const original = job.videos?.duration_seconds ?? 0
+          const processed = job.output_duration_seconds ?? original
+          return acc + (1 - processed / original) * 100
+        }, 0) / jobsWithDuration.length
+      : 0
 
   if (completedJobs.length === 0) {
     return (
@@ -70,6 +89,27 @@ export function HistoryPageClient({ completedJobs }: HistoryPageClientProps) {
         <p className="text-muted-foreground">
           Your processed videos
         </p>
+      </div>
+
+      {/* Summary stats bar */}
+      <div className="flex flex-wrap items-center gap-x-6 gap-y-2 rounded-lg border bg-card px-4 py-3 text-sm">
+        <div className="flex items-center gap-2">
+          <Film className="h-4 w-4 text-muted-foreground" />
+          <span>
+            <span className="font-semibold">{totalProcessed}</span> videos processed
+          </span>
+        </div>
+        <div className="flex items-center gap-2">
+          <Timer className="h-4 w-4 text-muted-foreground" />
+          <span>
+            <span className="font-semibold">{Math.round(totalTimeSaved)}</span>s saved
+          </span>
+        </div>
+        <div className="flex items-center gap-2">
+          <span>
+            <span className="font-semibold">{Math.round(avgReduction)}</span>% avg reduction
+          </span>
+        </div>
       </div>
 
       {comparingData && (
@@ -106,11 +146,11 @@ export function HistoryPageClient({ completedJobs }: HistoryPageClientProps) {
           } satisfies Video
 
           return (
-            <Card key={job.id}>
-              <CardContent className="pt-4 space-y-3">
+            <Card key={job.id} className="animate-fade-in-up">
+              <CardContent className="space-y-3 pt-4">
                 <div className="flex items-start justify-between">
                   <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium line-clamp-1">
+                    <p className="line-clamp-1 text-sm font-medium">
                       {videoData.original_filename}
                     </p>
                     <p className="text-xs text-muted-foreground">
@@ -128,7 +168,7 @@ export function HistoryPageClient({ completedJobs }: HistoryPageClientProps) {
 
                 <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
                   <span>
-                    {Math.round(originalDuration)}s → {Math.round(processedDuration)}s
+                    {Math.round(originalDuration)}s &rarr; {Math.round(processedDuration)}s
                     {originalDuration > 0 && (
                       <> ({Math.round((1 - processedDuration / originalDuration) * 100)}%)</>
                     )}

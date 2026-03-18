@@ -40,12 +40,16 @@ describe("validateFileSize", () => {
     expect(validateFileSize(1024 * 1024)).toBeNull()
   })
 
-  it("accepts exactly 500 MB", () => {
-    expect(validateFileSize(MAX_FILE_SIZE_BYTES)).toBeNull()
+  it("accepts exactly 500 MB on pro tier", () => {
+    expect(validateFileSize(MAX_FILE_SIZE_BYTES, "pro")).toBeNull()
   })
 
-  it("rejects file over 500 MB", () => {
-    expect(validateFileSize(MAX_FILE_SIZE_BYTES + 1)).toContain("too large")
+  it("rejects file over 500 MB on pro tier", () => {
+    expect(validateFileSize(MAX_FILE_SIZE_BYTES + 1, "pro")).toContain("too large")
+  })
+
+  it("rejects file over 50 MB on free tier", () => {
+    expect(validateFileSize(50 * 1024 * 1024 + 1)).toContain("too large")
   })
 
   it("rejects empty file", () => {

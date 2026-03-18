@@ -27,8 +27,7 @@ export type VideoMetadata = {
   height: number
 }
 
-export type SignedUrlResponse = {
-  signedUrl: string
+export type PrepareUploadResponse = {
   storagePath: string
 }
 

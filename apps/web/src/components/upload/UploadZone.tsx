@@ -1,7 +1,8 @@
 "use client"
 
-import { useCallback, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { Upload } from "lucide-react"
+import { toast } from "sonner"
 import { ACCEPTED_MIME_TYPES } from "@/lib/videos/validation"
 import { UploadProgress } from "./UploadProgress"
 import type { Tier, UploadState } from "@/lib/videos/types"
@@ -24,12 +25,25 @@ export function UploadZone({
   const inputRef = useRef<HTMLInputElement>(null)
   const [dragOver, setDragOver] = useState(false)
   const [filename, setFilename] = useState("")
+  const lastPhaseRef = useRef(state.phase)
 
   const isIdle = state.phase === "idle"
   const isComplete = state.phase === "complete"
   const isError = state.phase === "error"
-  const isBusy =
-    !isIdle && !isComplete && !isError
+  const isBusy = !isIdle && !isComplete && !isError
+
+  // Toast notifications on state changes
+  useEffect(() => {
+    if (state.phase === lastPhaseRef.current) return
+    lastPhaseRef.current = state.phase
+
+    if (state.phase === "complete") {
+      toast.success(`"${filename}" uploaded successfully!`)
+    }
+    if (state.phase === "error" && state.error) {
+      toast.error(state.error)
+    }
+  }, [state.phase, state.error, filename])
 
   const handleFile = useCallback(
     (file: File) => {
@@ -65,9 +79,9 @@ export function UploadZone({
 
   if (isComplete) {
     return (
-      <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed border-green-500 bg-green-50 p-8 dark:bg-green-950/20">
-        <p className="text-sm font-medium text-green-700 dark:text-green-400">
-          &ldquo;{filename}&rdquo; uploaded successfully!
+      <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed p-8">
+        <p className="text-sm text-muted-foreground">
+          Ready for another?
         </p>
         <button
           className="text-sm text-primary underline"
@@ -84,9 +98,9 @@ export function UploadZone({
       <div
         role="button"
         tabIndex={0}
-        className={`flex cursor-pointer flex-col items-center gap-3 rounded-lg border-2 border-dashed p-8 transition-colors ${
+        className={`flex cursor-pointer flex-col items-center gap-3 rounded-lg border-2 border-dashed p-8 transition-all duration-200 ${
           dragOver
-            ? "border-primary bg-primary/5"
+            ? "border-primary bg-primary/5 scale-[1.01]"
             : "border-muted-foreground/25 hover:border-primary/50"
         }`}
         onClick={() => inputRef.current?.click()}
@@ -118,9 +132,6 @@ export function UploadZone({
         className="hidden"
         onChange={handleChange}
       />
-      {isError && state.error && (
-        <p className="mt-2 text-sm text-destructive">{state.error}</p>
-      )}
     </div>
   )
 }

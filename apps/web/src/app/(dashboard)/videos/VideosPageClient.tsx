@@ -11,6 +11,7 @@ import { VideoCompare } from "@/components/preview/VideoCompare"
 import { DeleteVideoDialog } from "@/components/upload/DeleteVideoDialog"
 import type { Tier, Video } from "@/lib/videos/types"
 import type { Job } from "@/lib/jobs/types"
+import { toast } from "sonner"
 
 type VideosPageClientProps = {
   initialVideos: Video[]
@@ -63,8 +64,11 @@ export function VideosPageClient({
       })
 
       if (res.ok) {
+        toast.success(`"${deletingVideo.original_filename}" deleted.`)
         setDeletingVideo(null)
         router.refresh()
+      } else {
+        toast.error("Failed to delete video.")
       }
     } finally {
       setIsDeleting(false)

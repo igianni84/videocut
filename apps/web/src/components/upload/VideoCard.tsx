@@ -33,6 +33,13 @@ const STATUS_VARIANT: Record<
   failed: "destructive",
 }
 
+const STATUS_BORDER: Record<string, string> = {
+  uploaded: "border-l-muted-foreground/40",
+  processing: "border-l-primary",
+  completed: "border-l-green-500",
+  failed: "border-l-destructive",
+}
+
 type VideoCardProps = {
   video: Video
   latestJob?: Job | null
@@ -57,13 +64,44 @@ export function VideoCard({
   const isProcessing = latestJob?.status === "queued" || latestJob?.status === "processing"
   const canProcess = video.status === "uploaded" || (video.status === "completed" && !isProcessing)
   const isCompleted = latestJob?.status === "completed"
+  const effectiveStatus = isCompleted
+    ? "completed"
+    : isProcessing
+      ? "processing"
+      : latestJob?.status === "failed"
+        ? "failed"
+        : video.status
 
   return (
-    <Card>
+    <Card
+      className={`animate-fade-in-up overflow-hidden border-l-4 ${STATUS_BORDER[effectiveStatus] ?? "border-l-muted-foreground/40"}`}
+    >
+      {/* Thumbnail placeholder */}
+      <button
+        type="button"
+        onClick={() => onPlay(video)}
+        className="relative flex aspect-video w-full items-center justify-center bg-gradient-to-br from-muted to-muted/50 transition-opacity hover:opacity-80"
+      >
+        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-black/50 text-white">
+          <Play className="ml-0.5 h-5 w-5" />
+        </div>
+      </button>
+
       <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-2">
-        <CardTitle className="line-clamp-1 text-sm font-medium">
-          {video.original_filename}
-        </CardTitle>
+        <div className="flex min-w-0 flex-1 items-center gap-2">
+          <CardTitle className="line-clamp-1 text-sm font-medium">
+            {video.original_filename}
+          </CardTitle>
+          {isCompleted ? (
+            <Badge variant="default" className="shrink-0 bg-green-600">
+              completed
+            </Badge>
+          ) : !isProcessing ? (
+            <Badge variant={STATUS_VARIANT[video.status] ?? "secondary"} className="shrink-0">
+              {video.status}
+            </Badge>
+          ) : null}
+        </div>
         <DropdownMenu>
           <DropdownMenuTrigger
             render={<Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" />}
@@ -82,7 +120,6 @@ export function VideoCard({
                   Compare Original vs Processed
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => {
-                  // Trigger download via the API
                   fetch(`/api/videos/${video.id}/download`)
                     .then((r) => r.json())
                     .then(({ downloadUrl, filename }) => {
@@ -111,41 +148,37 @@ export function VideoCard({
           </DropdownMenuContent>
         </DropdownMenu>
       </CardHeader>
+
       <CardContent>
-        <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-          <span>{formatDuration(video.duration_seconds)}</span>
-          <span>&middot;</span>
-          <span>{formatFileSize(video.file_size_bytes)}</span>
+        {/* Metadata as badge pills */}
+        <div className="flex flex-wrap items-center gap-1.5">
+          <Badge variant="outline" className="text-xs font-normal">
+            {formatDuration(video.duration_seconds)}
+          </Badge>
+          <Badge variant="outline" className="text-xs font-normal">
+            {formatFileSize(video.file_size_bytes)}
+          </Badge>
           {video.width && video.height && (
-            <>
-              <span>&middot;</span>
-              <span>
-                {video.width}&times;{video.height}
-              </span>
-            </>
+            <Badge variant="outline" className="text-xs font-normal">
+              {video.width}&times;{video.height}
+            </Badge>
           )}
         </div>
 
-        <div className="mt-2 flex items-center gap-2">
-          {!latestJob && (
-            <Badge variant={STATUS_VARIANT[video.status] ?? "secondary"}>
-              {video.status}
-            </Badge>
-          )}
-          {canProcess && (
+        {canProcess && (
+          <div className="mt-2">
             <ProcessingOptionsDialog
               videoId={video.id}
               disabled={isProcessing}
               tier={tier}
               onProcessStarted={() => onProcess(video.id)}
             />
-          )}
-        </div>
+          </div>
+        )}
 
         {/* Completed job: preview + download buttons */}
         {isCompleted && latestJob && (
           <div className="mt-2 flex items-center gap-2">
-            <Badge variant="default">completed</Badge>
             <Button
               size="sm"
               variant="outline"

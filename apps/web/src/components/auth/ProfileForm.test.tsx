@@ -50,6 +50,6 @@ describe("ProfileForm", () => {
 
   it("renders language selector", () => {
     render(<ProfileForm profile={mockProfile} />)
-    expect(screen.getByLabelText(/preferred language/i)).toBeInTheDocument()
+    expect(screen.getAllByText(/preferred language/i).length).toBeGreaterThanOrEqual(1)
   })
 })

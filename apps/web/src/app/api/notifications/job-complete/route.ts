@@ -1,8 +1,15 @@
 import { NextResponse } from "next/server"
 import { Resend } from "resend"
 
-const resend = new Resend(process.env.RESEND_API_KEY)
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://videocut.app"
+
+function getResend() {
+  const key = process.env.RESEND_API_KEY
+  if (!key) {
+    throw new Error("RESEND_API_KEY is not configured")
+  }
+  return new Resend(key)
+}
 
 export async function POST(request: Request) {
   // Authenticate via processing API key
@@ -23,7 +30,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    await resend.emails.send({
+    await getResend().emails.send({
       from: "VideoCut <notifications@videocut.app>",
       to: userEmail,
       subject: `Your video "${videoName}" is ready!`,
