@@ -1,19 +1,29 @@
 "use client"
 
-import { useActionState } from "react"
+import { useActionState, useEffect, useRef, useState } from "react"
+import { toast } from "sonner"
 
 import { updateProfile } from "@/lib/auth/actions"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
-import { Alert, AlertDescription } from "@/components/ui/alert"
 import {
   Card,
   CardContent,
+  CardDescription,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import { Switch } from "@/components/ui/switch"
+import { ManageSubscriptionButton } from "@/components/billing/ManageSubscriptionButton"
 import type { AuthResult, Profile } from "@/lib/auth/types"
 
 const LANGUAGES = [
@@ -30,21 +40,30 @@ export function ProfileForm({ profile }: { profile: Profile }) {
     updateProfile,
     null as AuthResult | null
   )
+  const [language, setLanguage] = useState(profile.preferred_language ?? "auto")
+  const [notifEnabled, setNotifEnabled] = useState(profile.email_notifications)
+  const notifFormRef = useRef<HTMLFormElement>(null)
+  const isFirstRender = useRef(true)
+
+  useEffect(() => {
+    if (state?.success) {
+      toast.success("Profile updated successfully.")
+    } else if (state?.error) {
+      toast.error(state.error)
+    }
+  }, [state])
+
+  // Auto-submit notifications form when switch changes
+  useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false
+      return
+    }
+    notifFormRef.current?.requestSubmit()
+  }, [notifEnabled])
 
   return (
     <div className="flex max-w-lg flex-col gap-6">
-      {state?.success && (
-        <Alert>
-          <AlertDescription>Profile updated successfully.</AlertDescription>
-        </Alert>
-      )}
-
-      {state?.error && (
-        <Alert variant="destructive">
-          <AlertDescription>{state.error}</AlertDescription>
-        </Alert>
-      )}
-
       <Card>
         <CardHeader>
           <CardTitle>Account Info</CardTitle>
@@ -92,19 +111,20 @@ export function ProfileForm({ profile }: { profile: Profile }) {
               />
             </div>
             <div className="flex flex-col gap-2">
-              <Label htmlFor="preferred_language">Preferred language</Label>
-              <select
-                id="preferred_language"
-                name="preferred_language"
-                defaultValue={profile.preferred_language ?? "auto"}
-                className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30"
-              >
-                {LANGUAGES.map((lang) => (
-                  <option key={lang.value} value={lang.value}>
-                    {lang.label}
-                  </option>
-                ))}
-              </select>
+              <Label>Preferred language</Label>
+              <Select value={language} onValueChange={(val) => { if (val) setLanguage(val) }}>
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {LANGUAGES.map((lang) => (
+                    <SelectItem key={lang.value} value={lang.value}>
+                      {lang.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <input type="hidden" name="preferred_language" value={language} />
             </div>
             <Button type="submit" disabled={isPending} className="w-fit">
               {isPending ? "Saving..." : "Save changes"}
@@ -118,10 +138,10 @@ export function ProfileForm({ profile }: { profile: Profile }) {
           <CardTitle>Notifications</CardTitle>
         </CardHeader>
         <CardContent>
-          <form action={action} className="flex flex-col gap-4">
-            {/* Preserve current profile values as hidden inputs */}
+          <form ref={notifFormRef} action={action} className="flex flex-col gap-4">
             <input type="hidden" name="full_name" value={profile.full_name ?? ""} />
             <input type="hidden" name="preferred_language" value={profile.preferred_language ?? "auto"} />
+            {notifEnabled && <input type="hidden" name="email_notifications" value="on" />}
             <div className="flex items-center justify-between">
               <div>
                 <Label htmlFor="email_notifications">Email when video is ready</Label>
@@ -129,19 +149,88 @@ export function ProfileForm({ profile }: { profile: Profile }) {
                   Get notified when your video finishes processing
                 </p>
               </div>
-              <label className="relative inline-flex cursor-pointer items-center">
-                <input
-                  type="checkbox"
-                  id="email_notifications"
-                  name="email_notifications"
-                  defaultChecked={profile.email_notifications}
-                  className="peer sr-only"
-                  onChange={(e) => e.target.form?.requestSubmit()}
-                />
-                <div className="h-5 w-9 rounded-full bg-zinc-200 after:absolute after:start-[2px] after:top-[2px] after:h-4 after:w-4 after:rounded-full after:bg-white after:transition-all peer-checked:bg-zinc-900 peer-checked:after:translate-x-full dark:bg-zinc-700 dark:peer-checked:bg-zinc-400" />
-              </label>
+              <Switch
+                id="email_notifications"
+                checked={notifEnabled}
+                onCheckedChange={setNotifEnabled}
+              />
             </div>
           </form>
+        </CardContent>
+      </Card>
+
+      {/* Subscription Card */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Subscription</CardTitle>
+          <CardDescription>
+            {profile.tier === "pro" ? "You're on the Pro plan" : "Upgrade to unlock more features"}
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-4">
+          {profile.tier === "free" ? (
+            <>
+              <div className="rounded-md border p-4">
+                <p className="text-sm font-medium">Free Plan Limits</p>
+                <ul className="mt-2 space-y-1 text-sm text-muted-foreground">
+                  <li>Up to 60s videos</li>
+                  <li>1080p max resolution</li>
+                </ul>
+              </div>
+              <div className="rounded-md border border-primary/30 bg-primary/5 p-4">
+                <p className="text-sm font-medium">Pro Plan — EUR 10/month</p>
+                <ul className="mt-2 space-y-1 text-sm text-muted-foreground">
+                  <li>Up to 3 min videos</li>
+                  <li>4K resolution</li>
+                  <li>Smart crop, filler removal, priority processing</li>
+                </ul>
+              </div>
+              <a href="/pricing">
+                <Button className="w-full">Upgrade to Pro</Button>
+              </a>
+            </>
+          ) : (
+            <>
+              <div className="flex items-center gap-2">
+                <Badge variant="default">PRO</Badge>
+                <Badge
+                  variant={
+                    profile.subscription_status === "active"
+                      ? "secondary"
+                      : profile.subscription_status === "past_due"
+                        ? "destructive"
+                        : "outline"
+                  }
+                >
+                  {profile.subscription_status}
+                </Badge>
+              </div>
+
+              {profile.subscription_status === "past_due" && (
+                <div className="rounded-md border border-destructive bg-destructive/10 p-3 text-sm text-destructive">
+                  Your last payment failed. Please update your payment method to keep your Pro access.
+                </div>
+              )}
+
+              {profile.subscription_status === "canceled" && profile.subscription_period_end && (
+                <div className="rounded-md border border-amber-500 bg-amber-500/10 p-3 text-sm text-amber-700 dark:text-amber-400">
+                  Your plan ends on{" "}
+                  {new Date(profile.subscription_period_end).toLocaleDateString()}. You'll keep Pro
+                  access until then.
+                </div>
+              )}
+
+              {profile.subscription_period_end &&
+                profile.subscription_status === "active" && (
+                  <p className="text-sm text-muted-foreground">
+                    Next billing date:{" "}
+                    {new Date(profile.subscription_period_end).toLocaleDateString()}
+                  </p>
+                )}
+
+              <ManageSubscriptionButton />
+            </>
+          )}
         </CardContent>
       </Card>
     </div>

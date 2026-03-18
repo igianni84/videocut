@@ -101,6 +101,15 @@ async def _run_pipeline(
     options = ProcessingOptions(**options_dict)
     start_time = time.monotonic()
 
+    # Fetch job record for user_id and video_id
+    job_record = await supabase_client.get_job(job_id)
+    video_id = job_record.get("video_id") if job_record else None
+
+    # Tier enforcement (last-line-of-defense — API should have already rejected)
+    user_id_for_tier = job_record.get("user_id") if job_record else None
+    if user_id_for_tier:
+        await _enforce_tier_limits(user_id_for_tier, video_id, options)
+
     # Mark as processing
     await supabase_client.update_job_status(
         job_id,
@@ -177,8 +186,8 @@ async def _run_pipeline(
     # 9. ASS subtitle generation (63% -> 70%)
     ass_path = None
     needs_crop = options.output_format != "original"
-    video_w = info.get("width") or 1920
-    video_h = info.get("height") or 1080
+    video_w = info.width or 1920
+    video_h = info.height or 1080
 
     if needs_crop:
         crop_w, crop_h = calculate_crop_dimensions(video_w, video_h, options.output_format)
@@ -213,10 +222,8 @@ async def _run_pipeline(
         if faces:
             positions = smooth_crop_positions(faces, crop_w, crop_h, video_w, video_h)
             # Get FPS from video info
-            fps = 30.0  # default
             current_info = await get_video_info(current_video)
-            if current_info.get("fps"):
-                fps = current_info["fps"]
+            fps = current_info.fps or 30.0
             sendcmd_content = generate_sendcmd(positions, crop_w, crop_h, video_w, video_h, fps, 5)
             sendcmd_path = work_dir / "sendcmd.txt"
             sendcmd_path.write_text(sendcmd_content, encoding="utf-8")
@@ -241,7 +248,7 @@ async def _run_pipeline(
 
     # 11.5. Resolution scaling (if needed)
     current_info_for_scale = await get_video_info(current_video)
-    current_height = current_info_for_scale.get("height") or 1080
+    current_height = current_info_for_scale.height or 1080
     target_heights = {"720p": 720, "1080p": 1080, "4k": 2160}
     target_h = target_heights.get(options.output_resolution, 1080)
     if current_height != target_h:
@@ -265,11 +272,12 @@ async def _run_pipeline(
         await supabase_client.complete_job(
             job_id,
             output_storage_path=video_storage_path,
-            output_duration_seconds=info["duration"],
-            output_width=info.get("width"),
-            output_height=info.get("height"),
+            output_duration_seconds=info.duration,
+            output_width=info.width,
+            output_height=info.height,
             transcription=transcription.model_dump(),
             processing_duration_ms=elapsed_ms,
+            video_id=video_id,
         )
         return {"status": "completed", "no_cuts": True}
 
@@ -278,7 +286,7 @@ async def _run_pipeline(
 
     # 12. Upload result (90% -> 95%)
     logger.info("Job %s: uploading result...", job_id)
-    user_id = video_storage_path.split("/")[0]
+    user_id = job_record.get("user_id") if job_record else video_storage_path.split("/")[0]
     output_storage_path = f"{user_id}/{job_id}/processed.mp4"
     await supabase_client.upload_file("processed", output_storage_path, current_video)
     await supabase_client.update_job_progress(job_id, 95)
@@ -288,19 +296,20 @@ async def _run_pipeline(
     await supabase_client.complete_job(
         job_id,
         output_storage_path=output_storage_path,
-        output_duration_seconds=output_info["duration"],
-        output_width=output_info.get("width"),
-        output_height=output_info.get("height"),
+        output_duration_seconds=output_info.duration,
+        output_width=output_info.width,
+        output_height=output_info.height,
         transcription=transcription.model_dump(),
         processing_duration_ms=elapsed_ms,
+        video_id=video_id,
     )
 
     logger.info(
         "Job %s completed: %.1fs -> %.1fs (%.0f%% reduction) in %dms",
         job_id,
-        info["duration"],
-        output_info["duration"],
-        (1 - output_info["duration"] / info["duration"]) * 100 if info["duration"] > 0 else 0,
+        info.duration,
+        output_info.duration,
+        (1 - output_info.duration / info.duration) * 100 if info.duration > 0 else 0,
         elapsed_ms,
     )
 
@@ -308,6 +317,53 @@ async def _run_pipeline(
     await _send_notification_if_enabled(job_id, user_id, video_storage_path)
 
     return {"status": "completed"}
+
+
+async def _enforce_tier_limits(
+    user_id: str, video_id: str | None, options: ProcessingOptions
+) -> None:
+    """Last-line-of-defense tier check at processor level."""
+    sb = supabase_client.get_supabase()
+
+    profile = (
+        sb.table("profiles")
+        .select("tier, subscription_status")
+        .eq("id", user_id)
+        .single()
+        .execute()
+    )
+    if not profile.data:
+        return
+
+    tier = profile.data.get("tier", "free")
+    sub_status = profile.data.get("subscription_status")
+
+    # Defense-in-depth: pro without active/trialing subscription -> treat as free
+    if tier == "pro" and sub_status not in ("active", "trialing"):
+        tier = "free"
+
+    # Duration limits
+    duration_limits = {"free": 60, "pro": 180}
+    max_duration = duration_limits.get(tier, 60)
+
+    if video_id:
+        video = (
+            sb.table("videos")
+            .select("duration_seconds")
+            .eq("id", video_id)
+            .single()
+            .execute()
+        )
+        if video.data:
+            duration = float(video.data.get("duration_seconds", 0))
+            if duration > max_duration:
+                raise ValueError(
+                    f"Video duration ({duration:.0f}s) exceeds {tier} tier limit of {max_duration}s"
+                )
+
+    # Resolution limits
+    if tier == "free" and options.output_resolution == "4k":
+        raise ValueError("4K resolution is only available on the Pro plan")
 
 
 async def _send_notification_if_enabled(
@@ -363,23 +419,16 @@ async def _send_notification_if_enabled(
 
 
 async def _handle_failure(job_id: str, error_message: str) -> None:
-    """Handle failure with retry logic."""
-    job = supabase_client.get_job(job_id)
+    """Handle failure: immediately fail the job and reset video status."""
+    job = await supabase_client.get_job(job_id)
     if job is None:
         logger.error("Job %s not found in DB", job_id)
         return
 
-    retry_count = (job.get("retry_count") or 0) + 1
-
-    if retry_count < settings.max_retries:
-        # Re-enqueue for retry
-        logger.info("Job %s: retry %d/%d", job_id, retry_count, settings.max_retries)
-        sb = supabase_client.get_supabase()
-        sb.table("jobs").update({
-            "status": "queued",
-            "retry_count": retry_count,
-            "error_message": f"Retry {retry_count}: {error_message}",
-            "progress": 0,
-        }).eq("id", job_id).execute()
-    else:
-        await supabase_client.fail_job(job_id, error_message, retry_count=retry_count)
+    video_id = job.get("video_id")
+    await supabase_client.fail_job(
+        job_id,
+        error_message,
+        retry_count=(job.get("retry_count") or 0) + 1,
+        video_id=video_id,
+    )

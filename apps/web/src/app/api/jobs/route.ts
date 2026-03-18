@@ -1,5 +1,8 @@
 import { NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
+import { createAdminClient } from "@/lib/supabase/admin"
+import { validateDuration, DURATION_LIMITS } from "@/lib/videos/validation"
+import type { Tier } from "@/lib/videos/types"
 import type { CreateJobPayload } from "@/lib/jobs/types"
 
 const PROCESSING_SERVICE_URL = process.env.PROCESSING_SERVICE_URL
@@ -44,7 +47,7 @@ export async function POST(request: Request) {
   // Validate video exists and belongs to user
   const { data: video, error: videoError } = await supabase
     .from("videos")
-    .select("id, storage_path, status")
+    .select("id, storage_path, status, duration_seconds")
     .eq("id", body.videoId)
     .eq("user_id", user.id)
     .single()
@@ -57,6 +60,38 @@ export async function POST(request: Request) {
     return NextResponse.json(
       { error: "Video is already being processed" },
       { status: 409 },
+    )
+  }
+
+  // Tier enforcement
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("tier, subscription_status")
+    .eq("id", user.id)
+    .single()
+
+  // Defense-in-depth: if tier=pro but subscription not active/trialing, treat as free
+  let effectiveTier: Tier = (profile?.tier as Tier) ?? "free"
+  if (
+    effectiveTier === "pro" &&
+    profile?.subscription_status !== "active" &&
+    profile?.subscription_status !== "trialing"
+  ) {
+    effectiveTier = "free"
+  }
+
+  // Validate duration against tier limits
+  const durationError = validateDuration(video.duration_seconds, effectiveTier)
+  if (durationError) {
+    return NextResponse.json({ error: durationError }, { status: 403 })
+  }
+
+  // Block 4K for free tier
+  const requestedResolution = body.options?.output_resolution
+  if (effectiveTier === "free" && requestedResolution === "4k") {
+    return NextResponse.json(
+      { error: `4K resolution is only available on the Pro plan. Upgrade at /pricing` },
+      { status: 403 },
     )
   }
 
@@ -90,8 +125,11 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: jobError.message }, { status: 500 })
   }
 
+  // Use admin client for internal status updates (bypasses RLS)
+  const admin = createAdminClient()
+
   // Update video status to processing
-  await supabase
+  await admin
     .from("videos")
     .update({ status: "processing" })
     .eq("id", body.videoId)
@@ -114,11 +152,11 @@ export async function POST(request: Request) {
     if (!res.ok) {
       const detail = await res.text()
       // Rollback: mark job as failed
-      await supabase
+      await admin
         .from("jobs")
         .update({ status: "failed", error_message: `Processing service error: ${detail}` })
         .eq("id", job.id)
-      await supabase
+      await admin
         .from("videos")
         .update({ status: "uploaded" })
         .eq("id", body.videoId)
@@ -129,11 +167,11 @@ export async function POST(request: Request) {
     }
   } catch (err) {
     // Rollback on network error
-    await supabase
+    await admin
       .from("jobs")
       .update({ status: "failed", error_message: "Processing service unreachable" })
       .eq("id", job.id)
-    await supabase
+    await admin
       .from("videos")
       .update({ status: "uploaded" })
       .eq("id", body.videoId)

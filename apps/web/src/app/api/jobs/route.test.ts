@@ -15,6 +15,14 @@ vi.mock("@/lib/supabase/server", () => ({
   ),
 }))
 
+const mockAdminFrom = vi.fn()
+
+vi.mock("@/lib/supabase/admin", () => ({
+  createAdminClient: vi.fn(() => ({
+    from: mockAdminFrom,
+  })),
+}))
+
 // Mock global fetch for processing service calls
 const mockFetch = vi.fn()
 vi.stubGlobal("fetch", mockFetch)
@@ -168,6 +176,185 @@ describe("POST /api/jobs", () => {
     expect(body.error).toBe("Video is already being processed")
   })
 
+  it("returns 403 when free user submits video > 60s", async () => {
+    mockAuth.getUser.mockResolvedValue({
+      data: { user: { id: "user-1" } },
+    })
+
+    let fromCallCount = 0
+    mockFrom.mockImplementation(() => {
+      fromCallCount++
+      if (fromCallCount === 1) {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                single: vi.fn().mockResolvedValue({
+                  data: {
+                    id: "vid-1",
+                    storage_path: "uploads/vid-1.mp4",
+                    status: "uploaded",
+                    duration_seconds: 90,
+                  },
+                  error: null,
+                }),
+              }),
+            }),
+          }),
+        }
+      }
+      // profiles table
+      return {
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            single: vi.fn().mockResolvedValue({
+              data: { tier: "free", subscription_status: "none" },
+              error: null,
+            }),
+          }),
+        }),
+      }
+    })
+
+    const response = await POST(makeRequest({ videoId: "vid-1" }))
+    const body = await response.json()
+
+    expect(response.status).toBe(403)
+    expect(body.error).toContain("exceeds")
+  })
+
+  it("returns 403 when free user requests 4K resolution", async () => {
+    mockAuth.getUser.mockResolvedValue({
+      data: { user: { id: "user-1" } },
+    })
+
+    let fromCallCount = 0
+    mockFrom.mockImplementation(() => {
+      fromCallCount++
+      if (fromCallCount === 1) {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                single: vi.fn().mockResolvedValue({
+                  data: {
+                    id: "vid-1",
+                    storage_path: "uploads/vid-1.mp4",
+                    status: "uploaded",
+                    duration_seconds: 30,
+                  },
+                  error: null,
+                }),
+              }),
+            }),
+          }),
+        }
+      }
+      // profiles table
+      return {
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            single: vi.fn().mockResolvedValue({
+              data: { tier: "free", subscription_status: "none" },
+              error: null,
+            }),
+          }),
+        }),
+      }
+    })
+
+    const response = await POST(
+      makeRequest({ videoId: "vid-1", options: { output_resolution: "4k" } })
+    )
+    const body = await response.json()
+
+    expect(response.status).toBe(403)
+    expect(body.error).toContain("4K")
+  })
+
+  it("allows pro user with 3min video and 4K", async () => {
+    mockAuth.getUser.mockResolvedValue({
+      data: { user: { id: "user-1" } },
+    })
+
+    let fromCallCount = 0
+    mockFrom.mockImplementation(() => {
+      fromCallCount++
+      if (fromCallCount === 1) {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                single: vi.fn().mockResolvedValue({
+                  data: {
+                    id: "vid-1",
+                    storage_path: "uploads/vid-1.mp4",
+                    status: "uploaded",
+                    duration_seconds: 150,
+                  },
+                  error: null,
+                }),
+              }),
+            }),
+          }),
+        }
+      }
+      if (fromCallCount === 2) {
+        // profiles table
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              single: vi.fn().mockResolvedValue({
+                data: { tier: "pro", subscription_status: "active" },
+                error: null,
+              }),
+            }),
+          }),
+        }
+      }
+      if (fromCallCount === 3) {
+        // concurrent jobs check
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              in: vi.fn().mockResolvedValue({ count: 0 }),
+            }),
+          }),
+        }
+      }
+      // jobs insert
+      return {
+        insert: vi.fn().mockReturnValue({
+          select: vi.fn().mockReturnValue({
+            single: vi.fn().mockResolvedValue({
+              data: { id: "job-new", status: "queued" },
+              error: null,
+            }),
+          }),
+        }),
+      }
+    })
+
+    mockAdminFrom.mockReturnValue({
+      update: vi.fn().mockReturnValue({
+        eq: vi.fn().mockResolvedValue({ error: null }),
+      }),
+    })
+
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ status: "accepted" }),
+    })
+
+    const response = await POST(
+      makeRequest({ videoId: "vid-1", options: { output_resolution: "4k" } })
+    )
+    const body = await response.json()
+
+    expect(response.status).toBe(201)
+    expect(body.id).toBe("job-new")
+  })
+
   it("returns 429 when concurrent job limit reached", async () => {
     mockAuth.getUser.mockResolvedValue({
       data: { user: { id: "user-1" } },
@@ -187,9 +374,23 @@ describe("POST /api/jobs", () => {
                     id: "vid-1",
                     storage_path: "uploads/vid-1.mp4",
                     status: "uploaded",
+                    duration_seconds: 30,
                   },
                   error: null,
                 }),
+              }),
+            }),
+          }),
+        }
+      }
+      if (fromCallCount === 2) {
+        // profiles table
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              single: vi.fn().mockResolvedValue({
+                data: { tier: "free", subscription_status: "none" },
+                error: null,
               }),
             }),
           }),
@@ -231,6 +432,7 @@ describe("POST /api/jobs", () => {
                     id: "vid-1",
                     storage_path: "uploads/vid-1.mp4",
                     status: "uploaded",
+                    duration_seconds: 30,
                   },
                   error: null,
                 }),
@@ -240,6 +442,19 @@ describe("POST /api/jobs", () => {
         }
       }
       if (fromCallCount === 2) {
+        // profiles table: tier check
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              single: vi.fn().mockResolvedValue({
+                data: { tier: "free", subscription_status: "none" },
+                error: null,
+              }),
+            }),
+          }),
+        }
+      }
+      if (fromCallCount === 3) {
         // jobs table: concurrent limit check returns 0
         return {
           select: vi.fn().mockReturnValue({
@@ -249,25 +464,24 @@ describe("POST /api/jobs", () => {
           }),
         }
       }
-      if (fromCallCount === 3) {
-        // jobs table: insert new job
-        return {
-          insert: vi.fn().mockReturnValue({
-            select: vi.fn().mockReturnValue({
-              single: vi.fn().mockResolvedValue({
-                data: { id: "job-new", status: "queued" },
-                error: null,
-              }),
+      // jobs table: insert new job
+      return {
+        insert: vi.fn().mockReturnValue({
+          select: vi.fn().mockReturnValue({
+            single: vi.fn().mockResolvedValue({
+              data: { id: "job-new", status: "queued" },
+              error: null,
             }),
           }),
-        }
-      }
-      // videos table: update status to processing
-      return {
-        update: vi.fn().mockReturnValue({
-          eq: vi.fn().mockResolvedValue({ error: null }),
         }),
       }
+    })
+
+    // Admin client: update video status to processing
+    mockAdminFrom.mockReturnValue({
+      update: vi.fn().mockReturnValue({
+        eq: vi.fn().mockResolvedValue({ error: null }),
+      }),
     })
 
     mockFetch.mockResolvedValue({
@@ -313,6 +527,7 @@ describe("POST /api/jobs", () => {
                     id: "vid-1",
                     storage_path: "uploads/vid-1.mp4",
                     status: "uploaded",
+                    duration_seconds: 30,
                   },
                   error: null,
                 }),
@@ -325,29 +540,40 @@ describe("POST /api/jobs", () => {
         return {
           select: vi.fn().mockReturnValue({
             eq: vi.fn().mockReturnValue({
-              in: vi.fn().mockResolvedValue({ count: 0 }),
-            }),
-          }),
-        }
-      }
-      if (fromCallCount === 3) {
-        return {
-          insert: vi.fn().mockReturnValue({
-            select: vi.fn().mockReturnValue({
               single: vi.fn().mockResolvedValue({
-                data: { id: "job-new", status: "queued" },
+                data: { tier: "free", subscription_status: "none" },
                 error: null,
               }),
             }),
           }),
         }
       }
-      // Rollback calls (update jobs + update videos)
+      if (fromCallCount === 3) {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              in: vi.fn().mockResolvedValue({ count: 0 }),
+            }),
+          }),
+        }
+      }
       return {
-        update: vi.fn().mockReturnValue({
-          eq: vi.fn().mockResolvedValue({ error: null }),
+        insert: vi.fn().mockReturnValue({
+          select: vi.fn().mockReturnValue({
+            single: vi.fn().mockResolvedValue({
+              data: { id: "job-new", status: "queued" },
+              error: null,
+            }),
+          }),
         }),
       }
+    })
+
+    // Admin client: update video status + rollback calls
+    mockAdminFrom.mockReturnValue({
+      update: vi.fn().mockReturnValue({
+        eq: vi.fn().mockResolvedValue({ error: null }),
+      }),
     })
 
     mockFetch.mockResolvedValue({
@@ -380,6 +606,7 @@ describe("POST /api/jobs", () => {
                     id: "vid-1",
                     storage_path: "uploads/vid-1.mp4",
                     status: "uploaded",
+                    duration_seconds: 30,
                   },
                   error: null,
                 }),
@@ -392,28 +619,40 @@ describe("POST /api/jobs", () => {
         return {
           select: vi.fn().mockReturnValue({
             eq: vi.fn().mockReturnValue({
-              in: vi.fn().mockResolvedValue({ count: 0 }),
-            }),
-          }),
-        }
-      }
-      if (fromCallCount === 3) {
-        return {
-          insert: vi.fn().mockReturnValue({
-            select: vi.fn().mockReturnValue({
               single: vi.fn().mockResolvedValue({
-                data: { id: "job-new", status: "queued" },
+                data: { tier: "free", subscription_status: "none" },
                 error: null,
               }),
             }),
           }),
         }
       }
+      if (fromCallCount === 3) {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              in: vi.fn().mockResolvedValue({ count: 0 }),
+            }),
+          }),
+        }
+      }
       return {
-        update: vi.fn().mockReturnValue({
-          eq: vi.fn().mockResolvedValue({ error: null }),
+        insert: vi.fn().mockReturnValue({
+          select: vi.fn().mockReturnValue({
+            single: vi.fn().mockResolvedValue({
+              data: { id: "job-new", status: "queued" },
+              error: null,
+            }),
+          }),
         }),
       }
+    })
+
+    // Admin client: update video status + rollback calls
+    mockAdminFrom.mockReturnValue({
+      update: vi.fn().mockReturnValue({
+        eq: vi.fn().mockResolvedValue({ error: null }),
+      }),
     })
 
     mockFetch.mockRejectedValue(new Error("ECONNREFUSED"))
